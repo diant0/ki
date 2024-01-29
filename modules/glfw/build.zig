@@ -7,6 +7,9 @@ pub fn build(b: *std.Build) !void {
     const target    = b.standardTargetOptions(.{});
     const optimize  = b.standardOptimizeOption(.{});
 
+    const update_gamepad_mappings_step = b.step("update-gamepad-mappings", "update gamepad mappings");
+    update_gamepad_mappings_step.makeFn = updateGamepadMappings;
+
     _ = b.addModule("glfw", .{
         .root_source_file = .{ .path = "src/glfw.zig" },
     });
@@ -185,6 +188,39 @@ pub fn generateWaylandCode(b: *std.Build) !void {
 
     }
 
+}
+
+fn updateGamepadMappings(self: *std.Build.Step, _: *std.Progress.Node) !void {
+
+    const b = self.owner;
+
+    const cmake_program = try b.findProgram(&.{ "cmake" }, &.{ "" });
+
+    const build_root = b.build_root.handle;
+    
+    const cmake_scipt_path = try build_root.realpathAlloc(b.allocator, "glfw/CMake/GenerateMappings.cmake");
+    defer b.allocator.free(cmake_scipt_path);
+    
+    const mappings_h_in_path = try build_root.realpathAlloc(b.allocator, "glfw/src/mappings.h.in");
+    defer b.allocator.free(mappings_h_in_path);
+
+    const mappings_h_path = try build_root.realpathAlloc(b.allocator, "glfw/src/mappings.h");
+    defer b.allocator.free(mappings_h_path);
+
+    var process = std.ChildProcess.init(&[_][]const u8 {
+        cmake_program,
+        "-P",
+        cmake_scipt_path,
+        mappings_h_in_path,
+        mappings_h_path,
+    }, b.allocator);
+
+    const term = try process.spawnAndWait();
+
+    if (term.Exited != 0) {
+        return error.CMakeNonZeroExitCode;
+    }
+    
 }
 
 const repo_path = "glfw";

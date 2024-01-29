@@ -36,85 +36,58 @@ pub fn build(b: *std.Build) !void {
         .optimize           = optimize,
     });
 
-    { // prerequisites
-
-        if (target.result.os.tag == .linux) {
-            if (build_platform_wayland) {
-                try generateWaylandCode(b);
-            }
-        }
-
-    }
-
-    { // includes
-
-        lib.addIncludePath(.{ .path = repo_path ++ "/include" });
-
-        if (target.result.os.tag == .linux) {
-
-            const generated_wayland_code_abspath = try b.cache_root.handle.realpathAlloc(b.allocator, generated_wayland_code_subpath);
-            defer b.allocator.free(generated_wayland_code_abspath);
-            lib.addIncludePath(.{ .path = generated_wayland_code_abspath });
-        
-            lib.addIncludePath(.{ .path = "/usr/include" });
-        
-        }
-    
-    }
-
-    { // linking
-
-        lib.linkLibC();
-
-    }
-
-    { // c src
-
-        var c_src_list = std.ArrayList([]const u8).init(b.allocator);
-        defer c_src_list.deinit();
-
-        try c_src_list.appendSlice(c_src.common);
-        try c_src_list.appendSlice(c_src.platform_null);
-
-        switch (target.result.os.tag) {
-
-            .linux => {
-
-                try c_src_list.appendSlice(c_src.platform_linux);
-                
-                try c_src_list.appendSlice(c_src.window_system_x11);
-                try c_src_list.appendSlice(c_src.window_system_wayland);
-
-            },
-
-            else => return error.UnsupportedOS,
-
-        }
-
-        var c_flags_list = std.ArrayList([]const u8).init(b.allocator);
-        defer c_flags_list.deinit();
-
-        switch (target.result.os.tag) {
-
-            .linux => {
-
-                try c_flags_list.append(c_flags.build_x11);
-                try c_flags_list.append(c_flags.build_wayland);
-
-            },
-
-            else => return error.UnsupportedOS,
-
-        }
-
-        lib.addCSourceFiles(.{
-            .files = c_src_list.items,
-            .flags = c_flags_list.items,
-        });
-
-    }
-
     b.installArtifact(lib);
+
+    // --------------------------------
+    
+    var c_src = std.ArrayList([]const u8).init(b.allocator);
+    defer c_src.deinit();
+
+    var c_flags = std.ArrayList([]const u8).init(b.allocator);
+    defer c_flags.deinit();
+
+    try c_src.appendSlice(c_src_common);
+    try c_src.appendSlice(c_src_platform_null);
+
+    switch (target.result.os.tag) {
+
+        .linux => {
+
+            lib.addIncludePath(.{ .path = "/usr/include" });
+            try c_src.appendSlice(c_src_platform_linux);
+            lib.linkLibC();
+
+            if (build_platform_x11) {
+
+                try c_src.appendSlice(c_src_platform_x11);
+                try c_flags.append(c_flag_build_x11);
+
+            }
+
+            if (build_platform_wayland) {
+
+                try generateWaylandCode(b);
+
+                const generated_wayland_code_abspath = try b.cache_root.handle.realpathAlloc(b.allocator, generated_wayland_code_subpath);
+                defer b.allocator.free(generated_wayland_code_abspath);
+                lib.addIncludePath(.{ .path = generated_wayland_code_abspath });
+            
+                try c_src.appendSlice(c_src_platform_wayland);
+                try c_flags.append(c_flag_build_wayland);
+
+            }
+
+
+        },
+
+        else => return error.UnsupportedOS,
+
+    }
+
+    lib.addCSourceFiles(.{
+        .files = c_src.items,
+        .flags = c_flags.items,
+    });
 
     // --------------------------------
 
@@ -245,54 +218,46 @@ fn updateGamepadMappings(self: *std.Build.Step, _: *std.Progress.Node) !void {
 const repo_path = "glfw";
 const c_src_path = repo_path ++ "/src";
 
-const c_src = struct {
+pub const c_flag_build_x11     = "-D_GLFW_X11";
+pub const c_flag_build_wayland = "-D_GLFW_WAYLAND";
 
-    const common = &[_][]const u8 {
-        c_src_path ++ "/init.c",
-        c_src_path ++ "/platform.c",
-        c_src_path ++ "/context.c",
-        c_src_path ++ "/monitor.c",
-        c_src_path ++ "/window.c",
-        c_src_path ++ "/input.c",
-        c_src_path ++ "/vulkan.c",
-    };
-
-    const platform_null = &[_][]const u8 {
-        c_src_path ++ "/null_init.c",
-        c_src_path ++ "/null_joystick.c",
-        c_src_path ++ "/null_monitor.c",
-        c_src_path ++ "/null_window.c",
-    };
-
-    const platform_linux = &[_][]const u8 {
-        c_src_path ++ "/posix_module.c",
-        c_src_path ++ "/posix_thread.c",
-        c_src_path ++ "/posix_time.c",
-        c_src_path ++ "/posix_poll.c",
-        c_src_path ++ "/linux_joystick.c",
-        c_src_path ++ "/xkb_unicode.c",
-        c_src_path ++ "/egl_context.c",
-        c_src_path ++ "/osmesa_context.c",
-    };
-
-    const window_system_x11 = &[_][]const u8 {
-        c_src_path ++ "/x11_init.c",
-        c_src_path ++ "/x11_monitor.c",
-        c_src_path ++ "/x11_window.c",
-        c_src_path ++ "/glx_context.c",
-    };
-
-    const window_system_wayland = &[_][]const u8 {
-        c_src_path ++ "/wl_init.c",
-        c_src_path ++ "/wl_monitor.c",
-        c_src_path ++ "/wl_window.c",                    
-    };
-
+const c_src_common = &[_][]const u8 {
+    c_src_path ++ "/init.c",
+    c_src_path ++ "/platform.c",
+    c_src_path ++ "/context.c",
+    c_src_path ++ "/monitor.c",
+    c_src_path ++ "/window.c",
+    c_src_path ++ "/input.c",
+    c_src_path ++ "/vulkan.c",
 };
 
-pub const c_flags = struct {
+const c_src_platform_null = &[_][]const u8 {
+    c_src_path ++ "/null_init.c",
+    c_src_path ++ "/null_joystick.c",
+    c_src_path ++ "/null_monitor.c",
+    c_src_path ++ "/null_window.c",
+};
 
-    pub const build_x11     = "-D_GLFW_X11";
-    pub const build_wayland = "-D_GLFW_WAYLAND";
+const c_src_platform_linux = &[_][]const u8 {
+    c_src_path ++ "/posix_module.c",
+    c_src_path ++ "/posix_thread.c",
+    c_src_path ++ "/posix_time.c",
+    c_src_path ++ "/posix_poll.c",
+    c_src_path ++ "/linux_joystick.c",
+    c_src_path ++ "/xkb_unicode.c",
+    c_src_path ++ "/egl_context.c",
+    c_src_path ++ "/osmesa_context.c",
+};
 
+const c_src_platform_x11 = &[_][]const u8 {
+    c_src_path ++ "/x11_init.c",
+    c_src_path ++ "/x11_monitor.c",
+    c_src_path ++ "/x11_window.c",
+    c_src_path ++ "/glx_context.c",
+};
+
+const c_src_platform_wayland = &[_][]const u8 {
+    c_src_path ++ "/wl_init.c",
+    c_src_path ++ "/wl_monitor.c",
+    c_src_path ++ "/wl_window.c",                    
 };

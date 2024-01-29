@@ -24,8 +24,8 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
-    const glfw_x11     = if (b.option(bool, "glfw-x11", ""))     | x | x else true;
-    const glfw_wayland = if (b.option(bool, "glfw-wayland", "")) | x | x else true;
+    const glfw_x11     = b.option(bool, "glfw-x11", "")     orelse true;
+    const glfw_wayland = b.option(bool, "glfw-wayland", "") orelse true;
 
     const glfw = b.dependency("glfw", .{
         .x11        = glfw_x11,

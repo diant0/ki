@@ -18,8 +18,8 @@ pub fn build(b: *std.Build) !void {
     const target    = b.standardTargetOptions(.{});
     const optimize  = b.standardOptimizeOption(.{});
 
-    const build_platform_wayland    = if (b.option(bool, "wayland",   "build wayland platform")) | x | x else true;
-    const build_platform_x11        = if (b.option(bool, "x11",       "build x11 platform"))     | x | x else true;
+    const build_platform_wayland    = b.option(bool, "wayland",   "build wayland platform") orelse true;
+    const build_platform_x11        = b.option(bool, "x11",       "build x11 platform")     orelse true;
 
     if (target.result.os.tag == .linux) {
         if (!build_platform_x11 and !build_platform_wayland) {

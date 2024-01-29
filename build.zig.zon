@@ -1,0 +1,13 @@
+.{
+    .name = "ki",
+    .version = "0.0.0",
+    .dependencies = .{
+        .glfw = .{
+            .path = "external/glfw",
+        }
+    },
+    .paths = .{
+        "build.zig",
+        "src",
+    },
+}

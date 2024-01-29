@@ -2,16 +2,16 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
 
-    const target    = b.standardTargetOptions(.{});
-    const optimize  = b.standardOptimizeOption(.{});
-
-    const glfw = b.dependency("glfw", .{});
+    // --------------------------------
 
     const module = b.addModule("ki", .{
         .root_source_file = .{ .path = "src/ki.zig" },
     });
 
-    module.addImport("glfw", glfw.module("glfw"));
+    // --------------------------------
+
+    const target    = b.standardTargetOptions(.{});
+    const optimize  = b.standardOptimizeOption(.{});
 
     const lib = b.addStaticLibrary(.{
         .name               = "ki",
@@ -20,9 +20,19 @@ pub fn build(b: *std.Build) !void {
         .optimize           = optimize,
     });
 
-    lib.linkLibrary(glfw.artifact("glfw"));
-
     b.installArtifact(lib);
+
+    // --------------------------------
+
+    const glfw_x11     = if (b.option(bool, "glfw-x11", ""))     | x | x else true;
+    const glfw_wayland = if (b.option(bool, "glfw-wayland", "")) | x | x else true;
+
+    const glfw = b.dependency("glfw", .{
+        .x11        = glfw_x11,
+        .wayland    = glfw_wayland,
+    });
+    module.addImport("glfw", glfw.module("glfw"));
+    lib.linkLibrary(glfw.artifact("glfw"));
 
     // --------------------------------
 
@@ -35,5 +45,7 @@ pub fn build(b: *std.Build) !void {
 
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&run_main_tests.step);
+
+    // --------------------------------
 
 }

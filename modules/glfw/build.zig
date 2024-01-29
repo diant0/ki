@@ -1,18 +1,33 @@
 const std = @import("std");
 
-// TODO: make individual x11 / wayland builds possible
-
 pub fn build(b: *std.Build) !void {
 
-    const target    = b.standardTargetOptions(.{});
-    const optimize  = b.standardOptimizeOption(.{});
-
-    const update_gamepad_mappings_step = b.step("update-gamepad-mappings", "update gamepad mappings");
-    update_gamepad_mappings_step.makeFn = updateGamepadMappings;
+    // --------------------------------
 
     _ = b.addModule("glfw", .{
         .root_source_file = .{ .path = "src/glfw.zig" },
     });
+
+    // --------------------------------
+
+    const update_gamepad_mappings_step = b.step("update-gamepad-mappings", "update gamepad mappings");
+    update_gamepad_mappings_step.makeFn = updateGamepadMappings;
+
+    // --------------------------------
+
+    const target    = b.standardTargetOptions(.{});
+    const optimize  = b.standardOptimizeOption(.{});
+
+    const build_platform_wayland    = if (b.option(bool, "wayland",   "build wayland platform")) | x | x else true;
+    const build_platform_x11        = if (b.option(bool, "x11",       "build x11 platform"))     | x | x else true;
+
+    if (target.result.os.tag == .linux) {
+        if (!build_platform_x11 and !build_platform_wayland) {
+            return error.NoPlatformForLinuxSelected;
+        }
+    }
+
+    // --------------------------------
 
     const lib = b.addStaticLibrary(.{
         .name               = "glfw",
@@ -24,7 +39,9 @@ pub fn build(b: *std.Build) !void {
     { // prerequisites
 
         if (target.result.os.tag == .linux) {
-            try generateWaylandCode(b);
+            if (build_platform_wayland) {
+                try generateWaylandCode(b);
+            }
         }
 
     }
@@ -98,6 +115,8 @@ pub fn build(b: *std.Build) !void {
     }
 
     b.installArtifact(lib);
+
+    // --------------------------------
 
 }
 

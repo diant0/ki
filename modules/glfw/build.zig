@@ -4,12 +4,6 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
-    _ = b.addModule("glfw", .{
-        .root_source_file = .{ .path = "src/glfw.zig" },
-    });
-
-    // --------------------------------
-
     const update_gamepad_mappings_step = b.step("update-gamepad-mappings", "update gamepad mappings");
     update_gamepad_mappings_step.makeFn = updateGamepadMappings;
 
@@ -28,6 +22,24 @@ pub fn build(b: *std.Build) !void {
     }
 
     // --------------------------------
+    
+    const module = b.addModule("glfw", .{
+        .root_source_file = .{ .path = "src/glfw.zig" },
+    });
+
+    module.addIncludePath(.{ .path = repo_path ++ "/include" });
+
+    switch (target.result.os.tag) {
+
+        .linux => {
+            module.addIncludePath(.{ .path = "/usr/include" });
+        },
+
+        else => return error.UnsupportedOS,
+
+    }
+
+    // --------------------------------
 
     const lib = b.addStaticLibrary(.{
         .name               = "glfw",
@@ -39,7 +51,7 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(lib);
 
     // --------------------------------
-    
+
     var c_src = std.ArrayList([]const u8).init(b.allocator);
     defer c_src.deinit();
 
@@ -49,11 +61,13 @@ pub fn build(b: *std.Build) !void {
     try c_src.appendSlice(c_src_common);
     try c_src.appendSlice(c_src_platform_null);
 
+    lib.addIncludePath(.{ .path = repo_path ++ "/include" });
+
     switch (target.result.os.tag) {
 
         .linux => {
 
-            lib.addIncludePath(.{ .path = "/usr/include" });
+            // lib.addIncludePath(.{ .path = "/usr/include" });
             try c_src.appendSlice(c_src_platform_linux);
             lib.linkLibC();
 

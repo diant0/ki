@@ -3,11 +3,16 @@ const std = @import("std");
 pub fn build(b: *std.Build) !void {
 
     // --------------------------------
+
+    const config = b.addOptions();
+
+    // --------------------------------
     
     const module = b.addModule("stb", .{
         .root_source_file = .{ .path = "src/stb.zig" },
     });
 
+    module.addOptions("config", config);
     module.addIncludePath(.{ .path = repo_path });
 
     // --------------------------------
@@ -22,6 +27,7 @@ pub fn build(b: *std.Build) !void {
         .optimize           = optimize,
     });
 
+    lib.root_module.addOptions("config", config);
     b.installArtifact(lib);
 
     // --------------------------------
@@ -30,11 +36,15 @@ pub fn build(b: *std.Build) !void {
 
     lib.addIncludePath(.{ .path = repo_path });
 
-    if (b.option(bool, "image", "build stb_image") orelse false) {
+    const build_stb_image = b.option(bool, "image", "build stb_image") orelse false;
+    config.addOption(bool, "stb_image", build_stb_image);
+    if (build_stb_image) {
         try addGeneratedStbImpl(lib, "stb_image.h", "STB_IMAGE_IMPLEMENTATION");
     }
 
-    if (b.option(bool, "truetype", "build stb_truetype") orelse false) {
+    const build_stb_truetype = b.option(bool, "truetype", "build stb_truetype") orelse false;
+    config.addOption(bool, "stb_truetype", build_stb_truetype);
+    if (build_stb_truetype) {
         try addGeneratedStbImpl(lib, "stb_truetype.h", "STB_TRUETYPE_IMPLEMENTATION");
     }
 

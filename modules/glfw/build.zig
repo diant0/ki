@@ -12,8 +12,8 @@ pub fn build(b: *std.Build) !void {
     const target    = b.standardTargetOptions(.{});
     const optimize  = b.standardOptimizeOption(.{});
 
-    const build_platform_wayland    = b.option(bool, "wayland",   "build wayland platform") orelse true;
-    const build_platform_x11        = b.option(bool, "x11",       "build x11 platform")     orelse true;
+    const build_platform_wayland    = b.option(bool, "wayland",   "build wayland platform") orelse false;
+    const build_platform_x11        = b.option(bool, "x11",       "build x11 platform")     orelse false;
 
     if (target.result.os.tag == .linux) {
         if (!build_platform_x11 and !build_platform_wayland) {
@@ -67,7 +67,7 @@ pub fn build(b: *std.Build) !void {
 
         .linux => {
 
-            // lib.addIncludePath(.{ .path = "/usr/include" });
+            lib.addIncludePath(.{ .path = "/usr/include" });
             try c_src.appendSlice(c_src_platform_linux);
             lib.linkLibC();
 
@@ -108,7 +108,7 @@ pub fn build(b: *std.Build) !void {
 }
 
 /// relative to cache dir
-const generated_wayland_code_subpath = "generated_wayland_code";
+const generated_wayland_code_subpath = "generated/glfw/wayland-protocols";
 
 pub fn generateWaylandCode(b: *std.Build) !void {
 
@@ -117,12 +117,7 @@ pub fn generateWaylandCode(b: *std.Build) !void {
 
     const wayland_scanner_program = try b.findProgram(&.{ "wayland-scanner" }, &.{ "" });
 
-    cache_dir.makeDir(generated_wayland_code_subpath) catch | e | {
-        if (e != error.PathAlreadyExists) {
-            return e;
-        }
-    };
-    const generated_code_dir = try cache_dir.openDir(generated_wayland_code_subpath, .{});
+    const generated_code_dir = try cache_dir.makeOpenPath(generated_wayland_code_subpath, .{});
 
     const protocols_dir_path = try b.build_root.handle.realpathAlloc(b.allocator, repo_path ++ "/deps/wayland");
     defer b.allocator.free(protocols_dir_path);
@@ -147,7 +142,7 @@ pub fn generateWaylandCode(b: *std.Build) !void {
         const client_header_path = try std.fmt.bufPrint(&output_file_path_buf, "{s}/{s}/{s}-client-protocol.h",
             .{ cache_dir_path, generated_wayland_code_subpath, protocol_name });
 
-        generated_code_dir.access(client_header_path, .{}) catch | e | {
+        const genereted_client_header_file = generated_code_dir.openFile(client_header_path, .{}) catch | e | blk: {
 
             if (e == error.FileNotFound) {
 
@@ -166,12 +161,15 @@ pub fn generateWaylandCode(b: *std.Build) !void {
 
             }
 
+            break :blk try generated_code_dir.openFile(client_header_path, .{});
+
         };
+        genereted_client_header_file.close();
 
         const private_code_path = try std.fmt.bufPrint(&output_file_path_buf, "{s}/{s}/{s}-client-protocol-code.h",
             .{ b.cache_root.path.?, generated_wayland_code_subpath, protocol_name });
 
-        generated_code_dir.access(private_code_path, .{}) catch | e | {
+        const genereted_private_code_file = generated_code_dir.openFile(private_code_path, .{}) catch | e | blk: {
 
             if (e == error.FileNotFound) {
 
@@ -190,8 +188,10 @@ pub fn generateWaylandCode(b: *std.Build) !void {
 
             }
 
-        };
+            break :blk try generated_code_dir.openFile(private_code_path, .{});
 
+        };
+        genereted_private_code_file.close();
     }
 
 }

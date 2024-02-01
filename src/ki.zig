@@ -1,4 +1,5 @@
 pub const glfw = @import("glfw");
+pub const stb = @import("stb");
 
 pub const Version = struct {
 

@@ -4,7 +4,10 @@
     .dependencies = .{
         .glfw = .{
             .path = "modules/glfw",
-        }
+        },
+        .stb = .{
+            .path = "modules/stb",
+        },
     },
     .paths = .{
         "build.zig",

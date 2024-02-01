@@ -36,6 +36,19 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
+    const stb_image     = b.option(bool, "stb-image", "")       orelse true;
+    const stb_truetype  = b.option(bool, "stb-truetype", "")    orelse true;
+
+    const stb = b.dependency("stb", .{
+        .image      = stb_image,
+        .truetype   = stb_truetype,
+    });
+
+    module.addImport("stb", stb.module("stb"));
+    lib.linkLibrary(stb.artifact("stb"));
+
+    // --------------------------------
+
     const main_tests = b.addTest(.{
         .root_source_file   = .{ .path = "src/ki.zig" },
         .target             = target,

@@ -24,8 +24,8 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
-    const glfw_x11     = b.option(bool, "glfw-x11", "")     orelse true;
-    const glfw_wayland = b.option(bool, "glfw-wayland", "") orelse true;
+    const glfw_x11     = b.option(bool, "glfw_x11", "")     orelse true;
+    const glfw_wayland = b.option(bool, "glfw_wayland", "") orelse true;
 
     const glfw = b.dependency("glfw", .{
         .x11        = glfw_x11,
@@ -36,12 +36,9 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
-    const stb_image     = b.option(bool, "stb-image", "")       orelse true;
-    const stb_truetype  = b.option(bool, "stb-truetype", "")    orelse true;
-
     const stb = b.dependency("stb", .{
-        .image      = stb_image,
-        .truetype   = stb_truetype,
+        .image      = true,
+        .truetype   = true,
     });
 
     module.addImport("stb", stb.module("stb"));

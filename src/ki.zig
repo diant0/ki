@@ -1,6 +1,10 @@
 pub const glfw = @import("glfw");
 pub const stb = @import("stb");
 
+pub const time = struct {
+    pub const Time = @import("time/Time.zig").Time;
+};
+
 pub const Version = struct {
 
     major: u32,

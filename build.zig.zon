@@ -2,6 +2,9 @@
     .name = "ki",
     .version = "0.0.0",
     .dependencies = .{
+        .math = .{
+            .path = "modules/math",
+        },
         .glfw = .{
             .path = "modules/glfw",
         },

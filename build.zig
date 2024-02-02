@@ -24,6 +24,11 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
+    const math = b.dependency("math", .{});
+    module.addImport("math", math.module("math"));
+
+    // --------------------------------
+
     const glfw_x11     = b.option(bool, "glfw_x11", "")     orelse true;
     const glfw_wayland = b.option(bool, "glfw_wayland", "") orelse true;
 
@@ -51,6 +56,7 @@ pub fn build(b: *std.Build) !void {
         .target             = target,
         .optimize           = optimize,
     });
+    main_tests.root_module.addImport("math", math.module("math"));
     const run_main_tests = b.addRunArtifact(main_tests);
 
     const test_step = b.step("test", "Run library tests");

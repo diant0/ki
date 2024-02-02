@@ -1,9 +1,16 @@
-pub const glfw = @import("glfw");
-pub const stb = @import("stb");
+const std = @import("std");
+
+pub const math  = @import("math");
+
+pub const glfw  = @import("glfw");
+pub const stb   = @import("stb");
 
 pub const time = struct {
     pub const Time = @import("time/Time.zig").Time;
 };
+
+pub const ansi  = @import("ansi.zig");
+
 
 pub const Version = struct {
 
@@ -20,5 +27,11 @@ pub fn version() Version {
         .minor = 0,
         .patch = 0,
     };
+
+}
+
+test "ki.*" {
+
+    _ = ansi;
 
 }

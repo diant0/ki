@@ -1,9 +1,13 @@
 const std = @import("std");
 
-pub const math  = @import("math");
+pub const c = struct {
 
-pub const glfw  = @import("glfw");
-pub const stb   = @import("stb");
+    pub const glfw  = @import("glfw");
+    pub const stb   = @import("stb");
+
+};
+
+pub const math  = @import("math");
 
 pub const time = struct {
     pub const Time = @import("time/Time.zig").Time;

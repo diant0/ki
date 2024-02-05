@@ -21,7 +21,7 @@ pub const cursor = struct {
 
     }
 
-    pub fn move(comptime amount: math.Vec2(isize)) []const u8 {
+    pub fn move(comptime amount: @Vector(2, isize)) []const u8 {
 
         comptime var sequence: []const u8 = "";
 
@@ -161,11 +161,11 @@ pub const color = struct {
         return escape ++ std.fmt.comptimePrint("[48;5;{}m", .{ c });
     }
 
-    pub fn foregroundRGB(comptime c: math.Col3(u8)) []const u8 {
+    pub fn foregroundRGB(comptime c: @Vector(3, u8)) []const u8 {
         return escape ++ std.fmt.comptimePrint("[38;2;{};{};{}m", .{ c[0], c[1], c[2] });
     }
 
-    pub fn backgroundRGB(comptime c: math.Col3(u8)) []const u8 {
+    pub fn backgroundRGB(comptime c: @Vector(3, u8)) []const u8 {
         return escape ++ std.fmt.comptimePrint("[48;2;{};{};{}m", .{ c[0], c[1], c[2] });
     }
 

@@ -29,10 +29,14 @@ pub const ease   = easing.ease;
 pub const noise = @import("noise.zig");
 pub const rng   = @import("rng.zig");
 
+const vector = @import("vector.zig");
+pub usingnamespace vector;
+
 test "math.*" {
     _ = easing;
     _ = noise;
     _ = rng;
+    _ = vector;
 }
 
 // --------------------------------
@@ -255,7 +259,7 @@ pub inline fn trunc(n: anytype) @TypeOf(n) {
     return @trunc(n);
 }
 
-pub inline fn round(n: anytype) @TypeOf(n) {
+pub inline fn round(n: anytype) @TypeOf(n) {    
     return @round(n);
 }
 
@@ -290,7 +294,6 @@ test "math.clamp" {
 
 // --------------------------------
 
-// TODO: wrap, quantize
 pub inline fn wrap(n: anytype, lower_bound: @TypeOf(n), upper_bound: @TypeOf(n)) @TypeOf(n) {
     const window = upper_bound - lower_bound;
     return mod(n - lower_bound, window) + lower_bound;
@@ -305,6 +308,27 @@ test "math.wrap" {
     try std.testing.expectEqual(@as(comptime_int, 3), wrap(@as(comptime_int, 7), 0, 4));
     try std.testing.expectEqual(@as(usize, 2), wrap(@as(usize, 2), 0, 4));
     try std.testing.expectEqual(@as(i32, 1), wrap(@as(i32, -3), 0, 4));
+
+}
+
+// --------------------------------
+
+/// gives closest multiple of step to n when using floats.
+/// gives biggest multiple of step that hast smaller magnitude than n.
+/// expects positive step.
+pub inline fn quantize(n: anytype, step: @TypeOf(n)) @TypeOf(n) {
+    return switch (@typeInfo(@TypeOf(n))) {
+        .Int, .ComptimeInt => (n / step) * step,
+        .Float, .ComptimeFloat => round(n / step) * step,
+        else => @compileError("math.quantize: only numeric types allowed"),
+    };
+}
+
+test "math.quantize" {
+
+    try std.testing.expectEqual(@as(f32, 0.75), quantize(@as(f32, 0.8), 0.25));
+    try std.testing.expectEqual(@as(i32, -3), quantize(@as(i32, -5), 3));
+    try std.testing.expectEqual(@as(u32, 8), quantize(@as(u32, 11), 4));
 
 }
 
@@ -358,8 +382,8 @@ pub inline fn lerp(lower: anytype, upper: @TypeOf(lower), t: anytype) @TypeOf(lo
     const T = @TypeOf(lower);
     const C = @TypeOf(t);
 
-    const diff = upper - lower;
-    const rc = cast(C, lower) + cast(C, diff) * t;
+    const range = upper - lower;
+    const rc = cast(C, lower) + cast(C, range) * t;
 
     return cast(T, rc);
 
@@ -376,13 +400,37 @@ test "math.lerp" {
 
 // --------------------------------
 
+pub fn ilerp(n: anytype, lower: @TypeOf(n), upper: @TypeOf(n), TT: type) TT {
+    const range = upper - lower;
+    const offset = n - lower;
+    return cast(TT, offset) / cast(TT, range);
+}
+
+test "math.ilerp" {
+    try std.testing.expectApproxEqRel(@as(f32, 0.5),  ilerp(@as(f32, 0.5), 0.0, 1.0, f32), sqrt(std.math.floatEps(f32)));
+    try std.testing.expectApproxEqRel(@as(f64, 0.75), ilerp(@as(f64, 77.5), 10.0, 100.0, f64), sqrt(std.math.floatEps(f64)));
+}
+
+// --------------------------------
+
+/// uses f64 as transitional t
+pub inline fn remap(n: anytype, in_lower: @TypeOf(n), in_upper: @TypeOf(n), out_lower: @TypeOf(n), out_upper: @TypeOf(n)) @TypeOf(n) {
+    return lerp(out_lower, out_upper, ilerp(n, in_lower, in_upper, f64));
+}
+
+test "math.remap" {
+    try std.testing.expectEqual(@as(f32, 10.0), remap(@as(f32, 4.0), 2, 6, 0, 20));
+}
+
+// --------------------------------
+
 pub inline fn moveTowards(from: anytype, to: @TypeOf(from), max_delta: @TypeOf(from)) @TypeOf(from) {
 
-    const diff = to - from;
-    if (abs(diff) < max_delta) {
+    const range = to - from;
+    if (abs(range) < max_delta) {
         return to;
     }
-    return from + sign(diff) * max_delta;
+    return from + sign(range) * max_delta;
 
 }
 

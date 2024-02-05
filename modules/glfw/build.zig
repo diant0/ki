@@ -68,7 +68,11 @@ pub fn build(b: *std.Build) !void {
 
             lib.addIncludePath(.{ .path = "/usr/include" });
             try c_src.appendSlice(c_src_platform_linux);
+
             lib.linkLibC();
+            
+            module.addLibraryPath(.{ .path = "/usr/lib" });
+            lib.linkSystemLibrary("GL");
 
             if (build_platform_x11) {
 

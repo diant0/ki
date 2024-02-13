@@ -41,6 +41,11 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
+    const gl = b.dependency("gl", .{});
+    module.addImport("gl", gl.module("gl"));
+
+    // --------------------------------
+
     const stb = b.dependency("stb", .{
         .image      = true,
         .truetype   = true,

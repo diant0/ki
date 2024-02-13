@@ -8,6 +8,9 @@
         .glfw = .{
             .path = "modules/glfw",
         },
+        .gl = .{
+            .path = "modules/gl",
+        },
         .stb = .{
             .path = "modules/stb",
         },

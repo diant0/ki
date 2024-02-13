@@ -8,13 +8,13 @@ pub const c = struct {
 };
 
 pub const math  = @import("math");
+pub const gl    = @import("gl");
 
 pub const time = struct {
     pub const Time = @import("time/Time.zig").Time;
 };
 
 pub const ansi  = @import("ansi.zig");
-
 
 pub const Version = struct {
 

@@ -72,7 +72,6 @@ pub fn build(b: *std.Build) !void {
             lib.linkLibC();
             
             module.addLibraryPath(.{ .path = "/usr/lib" });
-            lib.linkSystemLibrary("GL");
 
             if (build_platform_x11) {
 

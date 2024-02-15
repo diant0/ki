@@ -15,6 +15,7 @@ pub const time = struct {
 };
 
 pub const ansi  = @import("ansi.zig");
+pub const log   = @import("log.zig");
 
 pub const Version = struct {
 

@@ -2,9 +2,13 @@ pub const raw = @import("raw.zig");
 
 // --------------------------------
 
-const gl_bitfield = raw.GLbitfield;
+pub const gl_bitfield   = raw.GLbitfield;
+pub const gl_enum       = raw.GLenum;
 
-const gl_f32      = raw.GLfloat;
+pub const gl_i8         = raw.GLbyte;
+pub const gl_u8         = raw.GLubyte;
+
+pub const gl_f32        = raw.GLfloat;
 
 // --------------------------------
 
@@ -29,5 +33,20 @@ pub const ClearTarget = enum(gl_bitfield) {
 pub inline fn clearColor(color: @Vector(4, gl_f32)) void {
     raw.glClearColor(color[0], color[1], color[2], color[3]);
 }
+
+// --------------------------------
+
+pub inline fn getString(name: GetStringTarget) [*:0]const gl_u8 {
+    return raw.glGetString(@intFromEnum(name));
+}
+
+pub const GetStringTarget = enum(gl_enum) {
+
+    Vendor          = raw.GL_VENDOR,
+    Renderer        = raw.GL_RENDERER,
+    Version         = raw.GL_VERSION,
+    GLSLVersion     = raw.GL_SHADING_LANGUAGE_VERSION,
+
+};
 
 // --------------------------------

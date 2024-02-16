@@ -5,6 +5,10 @@ pub const h = @cImport({
 // --------------------------------
 
 pub const GLbitfield    = h.GLbitfield;
+pub const GLenum        = h.GLenum;
+
+pub const GLbyte        = h.GLbyte;
+pub const GLubyte       = h.GLubyte;
 
 pub const GLfloat       = h.GLfloat;
 
@@ -22,9 +26,19 @@ pub var glClearColor: *const fn(r: GLfloat, g: GLfloat, b: GLfloat, a: GLfloat) 
 
 // --------------------------------
 
+pub var glGetString: *const fn(name: GLenum) [*:0]const GLubyte = undefined;
+
+pub const GL_VENDOR                     = h.GL_VENDOR;
+pub const GL_RENDERER                   = h.GL_RENDERER;
+pub const GL_VERSION                    = h.GL_VERSION;
+pub const GL_SHADING_LANGUAGE_VERSION   = h.GL_SHADING_LANGUAGE_VERSION;
+
+// --------------------------------
+
 pub inline fn load(getProcAddress: *const fn(name: [*:0]const u8) ?*const fn() callconv(.C) void) !void {
 
     glClear         = @ptrCast(getProcAddress("glClear")        orelse return error.getProcAddress_glClear);
     glClearColor    = @ptrCast(getProcAddress("glClearColor")   orelse return error.getProcAddress_glClearColor);
+    glGetString     = @ptrCast(getProcAddress("glGetString")    orelse return error.getProcAddress_glGetString);
 
 }

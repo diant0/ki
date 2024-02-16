@@ -12,20 +12,25 @@ pub fn Time(comptime T: type) type {
 
         prev_ts: TimestampT = undefined,
 
-        scale: T = 1.0,
+        total:  T = 0.0,
+        delta:  T = 0.0,
 
-        dt:  T = 0.0,
-        t:   T = 0.0,
+        scaled: struct {
 
-        sdt: T = 0.0,
-        st:  T = 0.0,
+            scale: T = 1.0,
+        
+            total: T = 0.0,
+            delta: T = 0.0,
+        
+        } = .{},
+
 
         pub fn init(self: *@This()) void {
 
-            self.dt  = 0.0;
-            self.t   = 0.0;
-            self.sdt = 0.0;
-            self.st  = 0.0;
+            self.delta = 0.0;
+            self.total = 0.0;
+            self.scaled.delta = 0.0;
+            self.scaled.total = 0.0;
 
             self.prev_ts = std.time.nanoTimestamp();
 
@@ -35,11 +40,11 @@ pub fn Time(comptime T: type) type {
 
             const current_ts = std.time.nanoTimestamp();
 
-            self.dt  = @as(T, @floatFromInt(current_ts - self.prev_ts)) / std.time.ns_per_s;
-            self.t  += self.dt;
+            self.delta  = @as(T, @floatFromInt(current_ts - self.prev_ts)) / std.time.ns_per_s;
+            self.total  += self.delta;
 
-            self.sdt = self.dt * self.scale;
-            self.st += self.sdt;
+            self.scaled.delta = self.delta * self.scaled.scale;
+            self.scaled.total += self.scaled.delta;
 
             self.prev_ts = current_ts;
 

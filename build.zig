@@ -47,8 +47,9 @@ pub fn build(b: *std.Build) !void {
     // --------------------------------
 
     const stb = b.dependency("stb", .{
-        .image      = true,
-        .truetype   = true,
+        .image          = true,
+        .image_write    = true,
+        .truetype       = true,
     });
 
     module.addImport("stb", stb.module("stb"));

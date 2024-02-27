@@ -5,23 +5,37 @@ pub fn Image(ComponentT: type) type {
 
     return struct {
 
-        pub var allocator = std.heap.page_allocator;
-
         size: @Vector(2, u32) = @splat(0),
         components_per_pixel: u32 = 0,
         data: []const ComponentT,
 
-        pub fn loadSTBI(path: []const u8, desired_components: ?u32) !@This() {
+        const STBIPixelComponents = enum(c_int) { Any = 0, R = 1, RA = 2, RGB = 3, RGBA = 4, };
+        /// .data of returned struct needs to be freed, does not internally hold *Allocator
+        /// some temporary allocations will be performed with passed allocator,
+        /// as well as stbi's internal allocations
+        pub fn stbiDecodeAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8, desired_components: STBIPixelComponents) !@This() {
 
             const file = try std.fs.openFileAbsolute(path, .{});
             defer file.close();
 
+            return try stbiDecodeFileAlloc(allocator, file, desired_components);
+
+        }
+
+        /// .data of returned struct needs to be freed, does not internally hold *Allocator
+        /// some temporary allocations will be performed with passed allocator,
+        /// as well as stbi's internal allocations
+        pub fn stbiDecodeFileAlloc(allocator: std.mem.Allocator, file: std.fs.File, desired_components: STBIPixelComponents) !@This() {
+
             const file_contents = try file.reader().readAllAlloc(allocator, std.math.maxInt(usize));
             defer allocator.free(file_contents);
 
-            var w: c_int = undefined;
-            var h: c_int = undefined;
-            var c: c_int = undefined;
+            return try stbiDecodeMemAlloc(allocator, file_contents, desired_components);
+        }
+        
+        /// .data of returned struct needs to be freed, does not internally hold *Allocator
+        /// some stbi's internal temporary allocations will be performed with libc
+        pub fn stbiDecodeMemAlloc(allocator: std.mem.Allocator, bytes: []const u8, desired_components: STBIPixelComponents) !@This() {
 
             const stbi = @import("stb").image;
             const load_func = switch(ComponentT) {
@@ -30,70 +44,116 @@ pub fn Image(ComponentT: type) type {
                 else => return error.STBIUnsupportedComponentType,
             };
 
-            const data = load_func(file_contents.ptr, @intCast(file_contents.len),
-                &w, &h, &c, @intCast(desired_components orelse 0)) orelse return error.STBILoadFromMemReturnedNull;
-            defer stbi.stbi_image_free(data);
+            var w: c_int = undefined;
+            var h: c_int = undefined;
+            var c: c_int = undefined;
+
+            const decoded_data = load_func(bytes.ptr, @intCast(bytes.len),
+                &w, &h, &c, @intFromEnum(desired_components)) orelse return error.STBILoadFromMemReturnedNull;
+            defer stbi.stbi_image_free(decoded_data);
 
             return .{
                 .size = [_]u32 { @intCast(w), @intCast(h) },
                 .components_per_pixel = @intCast(c),
-                .data = try allocator.dupe(ComponentT, data[0..@intCast(w*h*c)]),
+                .data = try allocator.dupe(ComponentT, decoded_data[0..@intCast(w*h*c)]),
             };
 
         }
         
         const STBIWFormat = enum { png, bmp, tga, hdr, jpg };
-        pub fn saveSTBIW(self: *const @This(), path: []const u8, format: STBIWFormat) !void {
+        pub fn stbiwEncodeAbsPath(self: *const @This(), path: []const u8, format: STBIWFormat) !void {
 
-            const writeCallback = struct {
-                fn f(context_ptr: ?*anyopaque, data_ptr: ?*anyopaque, data_size: c_int) callconv(.C) void {
-                    const writer: *std.fs.File.Writer = @alignCast(@ptrCast(context_ptr orelse {
-                        log.print(.Error, "recieved null context while writing image\n", .{});
+            const file = std.fs.createFileAbsolute(path, .{}) catch | e | blk: {
+                if (e == error.PathAlreadyExists) {
+                    break :blk try std.fs.openFileAbsolute(path, .{ .mode = .write_only });
+                } else return e;
+            };
+            defer file.close();
+            errdefer std.fs.deleteFileAbsolute(path) catch {};
+
+            try self.stbiwEncodeFile(file, format);
+
+        }
+
+        pub fn stbiwEncodeFile(self: *const @This(), file: std.fs.File, format: STBIWFormat) !void {
+
+            const writeToFileCallback = struct {
+                fn f(context: ?*anyopaque, data_ptr_opt: ?*anyopaque, data_len: c_int) callconv(.C) void {
+                    const out_file: *std.fs.File = @alignCast(@ptrCast(
+                        context orelse {
+                            log.print(.Error, "stb_image_write: recieved null context in encoding callback\n", .{});
+                            return;
+                        }
+                    ));
+                    if (data_ptr_opt) | data_ptr | {
+                        const data = @as([*]const u8, @ptrCast(data_ptr))[0..@intCast(data_len)];
+                        out_file.writeAll(data) catch {
+                            log.print(.Error, "stb_image_write: could not write encoded bytes to file\n", .{});
+                        };
+                    } else {
+                        log.print(.Error, "stb_image_write: recieved null data in encoding callback\n", .{});
                         return;
-                    }));
-                    const data = (@as([*]u8, @ptrCast(data_ptr orelse {
-                        log.print(.Error, "recieved null data while writing image\n", .{});
-                        return;
-                    })))[0..@intCast(data_size)];
-                    writer.writeAll(data) catch | e | {
-                        log.print(.Error, "failed writing image with error {s}\n",
-                            .{ @errorName(e) });
-                    };
+                    }
                 }
             }.f;
 
-            const file = std.fs.openFileAbsolute(path, .{ .mode = .write_only }) catch | e | blk: {
+            try self.stbiwInvokeEncodeCallback(writeToFileCallback, @constCast(&file), format);
 
-                if (e == error.FileNotFound) {
-                    break :blk try std.fs.createFileAbsolute(path, .{});
+        }
+
+        pub fn stbiwEncodeMemAlloc(self: *const @This(), allocator: std.mem.Allocator, format: STBIWFormat) ![]const u8 {
+
+            const allocCallback = struct {
+                fn f(context: ?*anyopaque, data_ptr_opt: ?*anyopaque, data_len: c_int) callconv(.C) void {
+                    const list: *std.ArrayList(u8) = @alignCast(@ptrCast(
+                        context orelse {
+                            log.print(.Error, "stb_image_write: recieved null context in encoding callback\n", .{});
+                            return;
+                        }
+                    ));
+                    if (data_ptr_opt) | data_ptr | {
+                        const data = @as([*]const u8, @ptrCast(data_ptr))[0..@intCast(data_len)];
+                        list.ensureTotalCapacity(data.len) catch {
+                            log.print(.Error, "stb_image_write: could not reserve needed capacity for encoded memory\n", .{});
+                        };
+                        list.appendSlice(data) catch {
+                            log.print(.Error, "stb_image_write: could not append encoded bytes to accumulator\n", .{});
+                        };
+                    } else {
+                        log.print(.Error, "stb_image_write: recieved null data in encoding callback\n", .{});
+                        return;
+                    }
                 }
-                
-                return e;
+            }.f;
 
-            };
-            errdefer std.fs.deleteFileAbsolute(path) catch {};
-            defer file.close();
-            var writer = file.writer();
+            var accumulator = std.ArrayList(u8).init(allocator);
+            try self.stbiwInvokeEncodeCallback(allocCallback, &accumulator, format);
+            return accumulator.toOwnedSlice();
+
+        }
+
+        pub fn stbiwInvokeEncodeCallback(self: *const @This(),
+            callback: *const fn(context: ?*anyopaque, data_ptr_opt: ?*anyopaque, data_len: c_int) callconv(.C) void,
+            context: ?*anyopaque, format: STBIWFormat) !void {
 
             const stbiw = @import("stb").image_write;
-
             const stbiw_retcode = switch (ComponentT) {
 
                 u8 => switch (format) {
 
-                    .png => stbiw.stbi_write_png_to_func(writeCallback, &writer, 
+                    .png => stbiw.stbi_write_png_to_func(callback, context, 
                         @intCast(self.size[0]), @intCast(self.size[1]), @intCast(self.components_per_pixel),
                         self.data.ptr, @intCast(self.size[0] * self.components_per_pixel * @sizeOf(ComponentT))),
 
-                    .bmp => stbiw.stbi_write_bmp_to_func(writeCallback, &writer,
+                    .bmp => stbiw.stbi_write_bmp_to_func(callback, context,
                         @intCast(self.size[0]), @intCast(self.size[1]), @intCast(self.components_per_pixel),
                         self.data.ptr),
 
-                    .tga => stbiw.stbi_write_tga_to_func(writeCallback, &writer,
+                    .tga => stbiw.stbi_write_tga_to_func(callback, context,
                         @intCast(self.size[0]), @intCast(self.size[1]), @intCast(self.components_per_pixel),
                         self.data.ptr),
                     
-                    .jpg => stbiw.stbi_write_jpg_to_func(writeCallback, &writer,
+                    .jpg => stbiw.stbi_write_jpg_to_func(callback, context,
                         @intCast(self.size[0]), @intCast(self.size[1]), @intCast(self.components_per_pixel),
                         self.data.ptr, 100),
 
@@ -103,7 +163,7 @@ pub fn Image(ComponentT: type) type {
 
                 f32 => switch (format) {
 
-                    .hdr => stbiw.stbi_write_hdr_to_func(writeCallback, &writer,
+                    .hdr => stbiw.stbi_write_hdr_to_func(callback, context,
                         @intCast(self.size[0]), @intCast(self.size[1]), @intCast(self.components_per_pixel),
                         self.data.ptr),
                         
@@ -116,12 +176,13 @@ pub fn Image(ComponentT: type) type {
             };
 
             if (stbiw_retcode == 0) {
-                return error.STBIWReturned0;
+                return error.STBIWReturnedCFalse;
             }
+
 
         }
 
-        pub fn free(self: *@This()) void {
+        pub fn free(self: *@This(), allocator: std.mem.Allocator) void {
             self.size = @splat(0);
             self.components_per_pixel = 0;
             allocator.free(self.data);

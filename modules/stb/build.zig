@@ -42,6 +42,12 @@ pub fn build(b: *std.Build) !void {
         try addGeneratedStbImpl(lib, "stb_image.h", "STB_IMAGE_IMPLEMENTATION");
     }
 
+    const build_stb_image_write = b.option(bool, "image_write", "build stb_image_write") orelse false;
+    config.addOption(bool, "stb_image_write", build_stb_image_write);
+    if (build_stb_image_write) {
+        try addGeneratedStbImpl(lib, "stb_image_write.h", "STB_IMAGE_WRITE_IMPLEMENTATION");
+    }
+
     const build_stb_truetype = b.option(bool, "truetype", "build stb_truetype") orelse false;
     config.addOption(bool, "stb_truetype", build_stb_truetype);
     if (build_stb_truetype) {

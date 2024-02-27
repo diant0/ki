@@ -17,6 +17,10 @@ pub const time = struct {
 pub const ansi  = @import("ansi.zig");
 pub const log   = @import("log.zig");
 
+pub const Window = @import("window.zig").Window;
+
+pub const Image = @import("rendering/Image.zig").Image;
+
 pub const Version = struct {
 
     major: u32,

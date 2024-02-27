@@ -4,3 +4,6 @@
 [submodule "modules/stb/stb"]
 	path = modules/stb/stb
 	url = https://github.com/diant0/stb
+[submodule "modules/qoi/qoi"]
+	path = modules/qoi/qoi
+	url = https://github.com/diant0/qoi

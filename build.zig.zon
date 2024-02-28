@@ -14,6 +14,9 @@
         .stb = .{
             .path = "modules/stb",
         },
+        .qoi = .{
+            .path = "modules/qoi"
+        },
     },
     .paths = .{
         "src",

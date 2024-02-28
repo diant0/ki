@@ -4,6 +4,7 @@ pub const c = struct {
 
     pub const glfw  = @import("glfw");
     pub const stb   = @import("stb");
+    pub const qoi   = @import("qoi");
 
 };
 

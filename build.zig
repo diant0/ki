@@ -57,6 +57,12 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
+    const qoi = b.dependency("qoi", .{});
+    module.addImport("qoi", qoi.module("qoi"));
+    lib.linkLibrary(qoi.artifact("qoi"));
+
+    // --------------------------------
+
     const main_tests = b.addTest(.{
         .root_source_file   = .{ .path = "src/ki.zig" },
         .target             = target,

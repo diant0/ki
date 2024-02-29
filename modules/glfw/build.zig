@@ -110,7 +110,7 @@ pub fn build(b: *std.Build) !void {
 }
 
 /// relative to cache dir
-const generated_wayland_code_subpath = "generated/glfw/wayland-protocols";
+const generated_wayland_code_subpath = "glfw";
 
 pub fn generateWaylandCode(b: *std.Build) !void {
 

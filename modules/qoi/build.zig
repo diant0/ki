@@ -42,7 +42,7 @@ fn addGeneratedQoiImpl(compile: *std.Build.Step.Compile, header: []const u8, imp
 
     const cache_dir = b.cache_root.handle;
 
-    var qoi_impls_dir = try cache_dir.makeOpenPath("generated/qoi/impls", .{});
+    var qoi_impls_dir = try cache_dir.makeOpenPath("qoi", .{});
     defer qoi_impls_dir.close();
     
     const qoi_impl_filename = "qoi.c";

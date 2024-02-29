@@ -57,7 +57,7 @@ pub fn build(b: *std.Build) !void {
 }
 
 const repo_path = "stb";
-const generated_impls_subpath = "generated/stb/impls";
+const generated_impls_subpath = "stb";
 
 fn addGeneratedStbImpl(compile: *std.Build.Step.Compile, header: []const u8, impl_define: []const u8) !void {
     const b = compile.step.owner;

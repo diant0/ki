@@ -10,32 +10,32 @@ pub fn Image(ComponentT: type) type {
         data: []const ComponentT,
 
         pub const STBIPixelComponents = enum(c_int) { Any = 0, R = 1, RA = 2, RGB = 3, RGBA = 4, };
-        /// .data of returned struct needs to be freed, does not internally hold *Allocator
+        /// .data of returned struct needs to be freed, does not internally hold *Allocator.
         /// some temporary allocations will be performed with passed allocator,
         /// as well as stbi's internal allocations
-        pub fn stbiDecodeAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8, desired_components: STBIPixelComponents) !@This() {
+        pub fn stbiDecodeFromAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8, desired_components: STBIPixelComponents) !@This() {
 
             const file = try std.fs.openFileAbsolute(path, .{});
             defer file.close();
 
-            return try stbiDecodeFileAlloc(allocator, file, desired_components);
+            return try stbiDecodeFromFileAlloc(allocator, file, desired_components);
 
         }
 
-        /// .data of returned struct needs to be freed, does not internally hold *Allocator
+        /// .data of returned struct needs to be freed, does not internally hold *Allocator.
         /// some temporary allocations will be performed with passed allocator,
         /// as well as stbi's internal allocations
-        pub fn stbiDecodeFileAlloc(allocator: std.mem.Allocator, file: std.fs.File, desired_components: STBIPixelComponents) !@This() {
+        pub fn stbiDecodeFromFileAlloc(allocator: std.mem.Allocator, file: std.fs.File, desired_components: STBIPixelComponents) !@This() {
 
             const file_contents = try file.reader().readAllAlloc(allocator, std.math.maxInt(usize));
             defer allocator.free(file_contents);
 
-            return try stbiDecodeMemAlloc(allocator, file_contents, desired_components);
+            return try stbiDecodeFromMemAlloc(allocator, file_contents, desired_components);
         }
         
         /// .data of returned struct needs to be freed, does not internally hold *Allocator
         /// some stbi's internal temporary allocations will be performed with libc
-        pub fn stbiDecodeMemAlloc(allocator: std.mem.Allocator, bytes: []const u8, desired_components: STBIPixelComponents) !@This() {
+        pub fn stbiDecodeFromMemAlloc(allocator: std.mem.Allocator, bytes: []const u8, desired_components: STBIPixelComponents) !@This() {
 
             const stbi = @import("stb").image;
             const load_func = switch(ComponentT) {
@@ -61,7 +61,8 @@ pub fn Image(ComponentT: type) type {
         }
         
         pub const STBIWFormat = enum { png, bmp, tga, hdr, jpg };
-        pub fn stbiwEncodeAbsPath(self: *const @This(), path: []const u8, format: STBIWFormat) !void {
+        /// stbiw will perform temporary allocations
+        pub fn stbiwEncodeToAbsPath(self: *const @This(), path: []const u8, format: STBIWFormat) !void {
 
             const file = std.fs.createFileAbsolute(path, .{}) catch | e | blk: {
                 if (e == error.PathAlreadyExists) {
@@ -71,11 +72,12 @@ pub fn Image(ComponentT: type) type {
             defer file.close();
             errdefer std.fs.deleteFileAbsolute(path) catch {};
 
-            try self.stbiwEncodeFile(file, format);
+            try self.stbiwEncodeToFile(file, format);
 
         }
 
-        pub fn stbiwEncodeFile(self: *const @This(), file: std.fs.File, format: STBIWFormat) !void {
+        /// stbiw will perform temporary allocations
+        pub fn stbiwEncodeToFile(self: *const @This(), file: std.fs.File, format: STBIWFormat) !void {
 
             const writeToFileCallback = struct {
                 fn f(context: ?*anyopaque, data_ptr_opt: ?*anyopaque, data_len: c_int) callconv(.C) void {
@@ -101,7 +103,9 @@ pub fn Image(ComponentT: type) type {
 
         }
 
-        pub fn stbiwEncodeMemAlloc(self: *const @This(), allocator: std.mem.Allocator, format: STBIWFormat) ![]const u8 {
+        /// returned slice needs to be freed.
+        /// stbiw will perform temporary allocations
+        pub fn stbiwEncodeToMemAlloc(self: *const @This(), allocator: std.mem.Allocator, format: STBIWFormat) ![]const u8 {
 
             const allocCallback = struct {
                 fn f(context: ?*anyopaque, data_ptr_opt: ?*anyopaque, data_len: c_int) callconv(.C) void {
@@ -183,25 +187,31 @@ pub fn Image(ComponentT: type) type {
         }
 
         pub const QOIPixelComponents = enum(c_int) { Any = 0, RGB = 3, RGBA = 4, };
-        pub fn qoiDecodeAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8, desired_components: QOIPixelComponents) !@This() {
+        /// .data of returned struct needs to be freed, does not internally hold *Allocator.
+        /// qoi will perform temporary allocations
+        pub fn qoiDecodeFromAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8, desired_components: QOIPixelComponents) !@This() {
             
             const file = try std.fs.openFileAbsolute(path, .{});
             defer file.close();
 
-            return try qoiDecodeFileAlloc(allocator, file, desired_components);
+            return try qoiDecodeFromFileAlloc(allocator, file, desired_components);
         
         }
 
-        pub fn qoiDecodeFileAlloc(allocator: std.mem.Allocator, file: std.fs.File, desired_components: QOIPixelComponents) !@This() {
+        /// .data of returned struct needs to be freed, does not internally hold *Allocator.
+        /// qoi will perform temporary allocations
+        pub fn qoiDecodeFromFileAlloc(allocator: std.mem.Allocator, file: std.fs.File, desired_components: QOIPixelComponents) !@This() {
 
             const file_contents = try file.reader().readAllAlloc(allocator, std.math.maxInt(usize));
             defer allocator.free(file_contents);
 
-            return try qoiDecodeMemAlloc(allocator, file_contents, desired_components);
+            return try qoiDecodeFromMemAlloc(allocator, file_contents, desired_components);
 
         }
 
-        pub fn qoiDecodeMemAlloc(allocator: std.mem.Allocator, bytes: []const u8, desired_components: QOIPixelComponents) !@This() {
+        /// .data of returned struct needs to be freed, does not internally hold *Allocator.
+        /// qoi will perform temporary allocations
+        pub fn qoiDecodeFromMemAlloc(allocator: std.mem.Allocator, bytes: []const u8, desired_components: QOIPixelComponents) !@This() {
 
             const qoi = @import("qoi");
 
@@ -220,17 +230,24 @@ pub fn Image(ComponentT: type) type {
             };
             
         }
+        
+        /// qoi will perform temporary allocations
+        pub fn qoiEncodeToAbsPath(self: *const @This(), path: []const u8) !void {
 
-        pub fn qoiEncodeAbsPath(self: *const @This(), path: []const u8) !void {
-
-            const file = try std.fs.openFileAbsolute(path, .{});
+            const file = std.fs.createFileAbsolute(path, .{}) catch | e | blk: {
+                if (e == error.PathAlreadyExists) {
+                    break :blk try std.fs.openFileAbsolute(path, .{ .mode = .write_only });
+                } else return e;
+            };
             defer file.close();
+            errdefer std.fs.deleteFileAbsolute(path) catch {};
 
-            return try self.qoiEncodeFile(file);    
+            return try self.qoiEncodeToFile(file);    
 
         }
 
-        pub fn qoiEncodeFile(self: *const @This(), file: std.fs.File) !void {
+        /// qoi will perform temporary allocations
+        pub fn qoiEncodeToFile(self: *const @This(), file: std.fs.File) !void {
 
             const qoi = @import("qoi");
 
@@ -251,7 +268,9 @@ pub fn Image(ComponentT: type) type {
 
         }
 
-        pub fn qoiEncodeMemAlloc(self: *const @This(), allocator: std.mem.Allocator) ![]const u8 {
+        /// returned slice needs to be freed.
+        /// qoi will perform temporary allocations
+        pub fn qoiEncodeToMemAlloc(self: *const @This(), allocator: std.mem.Allocator) ![]const u8 {
 
             const qoi = @import("qoi");
 

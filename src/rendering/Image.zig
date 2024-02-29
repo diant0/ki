@@ -9,7 +9,7 @@ pub fn Image(ComponentT: type) type {
         components_per_pixel: u32 = 0,
         data: []const ComponentT,
 
-        const STBIPixelComponents = enum(c_int) { Any = 0, R = 1, RA = 2, RGB = 3, RGBA = 4, };
+        pub const STBIPixelComponents = enum(c_int) { Any = 0, R = 1, RA = 2, RGB = 3, RGBA = 4, };
         /// .data of returned struct needs to be freed, does not internally hold *Allocator
         /// some temporary allocations will be performed with passed allocator,
         /// as well as stbi's internal allocations
@@ -48,19 +48,19 @@ pub fn Image(ComponentT: type) type {
             var h: c_int = undefined;
             var c: c_int = undefined;
 
-            const decoded_data = load_func(bytes.ptr, @intCast(bytes.len),
+            const decoded = load_func(bytes.ptr, @intCast(bytes.len),
                 &w, &h, &c, @intFromEnum(desired_components)) orelse return error.STBILoadFromMemReturnedNull;
-            defer stbi.stbi_image_free(decoded_data);
+            defer stbi.stbi_image_free(decoded);
 
             return .{
                 .size = [_]u32 { @intCast(w), @intCast(h) },
                 .components_per_pixel = @intCast(c),
-                .data = try allocator.dupe(ComponentT, decoded_data[0..@intCast(w*h*c)]),
+                .data = try allocator.dupe(ComponentT, decoded[0..@intCast(w*h*c)]),
             };
 
         }
         
-        const STBIWFormat = enum { png, bmp, tga, hdr, jpg };
+        pub const STBIWFormat = enum { png, bmp, tga, hdr, jpg };
         pub fn stbiwEncodeAbsPath(self: *const @This(), path: []const u8, format: STBIWFormat) !void {
 
             const file = std.fs.createFileAbsolute(path, .{}) catch | e | blk: {
@@ -179,6 +179,96 @@ pub fn Image(ComponentT: type) type {
                 return error.STBIWReturnedCFalse;
             }
 
+
+        }
+
+        pub const QOIPixelComponents = enum(c_int) { Any = 0, RGB = 3, RGBA = 4, };
+        pub fn qoiDecodeAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8, desired_components: QOIPixelComponents) !@This() {
+            
+            const file = try std.fs.openFileAbsolute(path, .{});
+            defer file.close();
+
+            return try qoiDecodeFileAlloc(allocator, file, desired_components);
+        
+        }
+
+        pub fn qoiDecodeFileAlloc(allocator: std.mem.Allocator, file: std.fs.File, desired_components: QOIPixelComponents) !@This() {
+
+            const file_contents = try file.reader().readAllAlloc(allocator, std.math.maxInt(usize));
+            defer allocator.free(file_contents);
+
+            return try qoiDecodeMemAlloc(allocator, file_contents, desired_components);
+
+        }
+
+        pub fn qoiDecodeMemAlloc(allocator: std.mem.Allocator, bytes: []const u8, desired_components: QOIPixelComponents) !@This() {
+
+            const qoi = @import("qoi");
+
+            var desc: qoi.qoi_desc = undefined;
+            const decoded = qoi.qoi_decode(bytes.ptr, @intCast(bytes.len), &desc, @intFromEnum(desired_components))
+                orelse return error.QOIDecodeReturnedNull;
+            // NOTE: requires QOI_FREE() to be libc free()
+            defer std.c.free(decoded);
+
+            const data = @as([*]u8, @ptrCast(decoded))[0..@intCast(desc.width * desc.height * desc.channels)];
+
+            return .{
+                .size = [_]u32 { desc.width, desc.height },
+                .components_per_pixel = @intCast(desc.channels),
+                .data = try allocator.dupe(u8, data),
+            };
+            
+        }
+
+        pub fn qoiEncodeAbsPath(self: *const @This(), path: []const u8) !void {
+
+            const file = try std.fs.openFileAbsolute(path, .{});
+            defer file.close();
+
+            return try self.qoiEncodeFile(file);    
+
+        }
+
+        pub fn qoiEncodeFile(self: *const @This(), file: std.fs.File) !void {
+
+            const qoi = @import("qoi");
+
+            const desc: qoi.qoi_desc = .{
+                .width = self.size[0],
+                .height = self.size[1],
+                .channels = @intCast(self.components_per_pixel),
+                .colorspace = qoi.QOI_SRGB,
+            };
+
+            var encoded_len: c_int = undefined;
+            const encoded = qoi.qoi_encode(self.data.ptr, &desc, &encoded_len)
+                orelse return error.QOIEncodeReturnedNull;
+            // NOTE: requires QOI_FREE() to be libc free()
+            defer std.c.free(encoded);
+
+            try file.writeAll(@as([*]const u8, @ptrCast(encoded))[0..@intCast(encoded_len)]);
+
+        }
+
+        pub fn qoiEncodeMemAlloc(self: *const @This(), allocator: std.mem.Allocator) ![]const u8 {
+
+            const qoi = @import("qoi");
+
+            const desc: qoi.qoi_desc = .{
+                .width = self.size[0],
+                .height = self.size[1],
+                .channels = @intCast(self.components_per_pixel),
+                .colorspace = qoi.QOI_SRGB,
+            };
+
+            var encoded_len: c_int = undefined;
+            const encoded = qoi.qoi_encode(self.data.ptr, &desc, &encoded_len)
+                orelse return error.QOIEncodeReturnedNull;
+            // NOTE: requires QOI_FREE() to be libc free()
+            defer std.c.free(encoded);
+
+            return try allocator.dupe(u8. encoded);
 
         }
 

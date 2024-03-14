@@ -24,7 +24,10 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
-    const math = b.dependency("math", .{});
+    const math = b.dependency("math", .{
+        .target     = target,
+        .optimize   = optimize,
+    });
     module.addImport("math", math.module("math"));
 
     // --------------------------------
@@ -33,6 +36,8 @@ pub fn build(b: *std.Build) !void {
     const glfw_wayland = b.option(bool, "glfw_wayland", "") orelse true;
 
     const glfw = b.dependency("glfw", .{
+        .target     = target,
+        .optimize   = optimize,
         .x11        = glfw_x11,
         .wayland    = glfw_wayland,
     });
@@ -48,6 +53,8 @@ pub fn build(b: *std.Build) !void {
     // --------------------------------
 
     const stb = b.dependency("stb", .{
+        .target         = target,
+        .optimize       = optimize,
         .image          = true,
         .image_write    = true,
         .truetype       = true,
@@ -58,7 +65,10 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
-    const qoi = b.dependency("qoi", .{});
+    const qoi = b.dependency("qoi", .{
+        .target         = target,
+        .optimize       = optimize,
+    });
     module.addImport("qoi", qoi.module("qoi"));
     lib.linkLibrary(qoi.artifact("qoi"));
 

@@ -43,6 +43,7 @@ pub fn build(b: *std.Build) !void {
 
     const gl = b.dependency("gl", .{});
     module.addImport("gl", gl.module("gl"));
+    lib.linkLibrary(gl.artifact("gl"));
 
     // --------------------------------
 

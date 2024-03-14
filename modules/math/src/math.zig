@@ -32,6 +32,12 @@ pub const rng   = @import("rng.zig");
 const vector = @import("vector.zig");
 pub usingnamespace vector;
 
+const matrix = @import("matrix.zig");
+pub usingnamespace matrix;
+
+const rect = @import("rect.zig");
+pub usingnamespace rect;
+
 test "math.*" {
     _ = easing;
     _ = noise;

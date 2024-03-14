@@ -4,15 +4,15 @@ const Image = @import("Image.zig").Image;
 
 pub const Texture = struct {
 
-    id: gl.TextureID,
+    id: gl.GLuint,
     size: @Vector(2, u32),
     channels: u32,
 
     pub const Parameters = struct {
-        wrap_hor: gl.Wrap = .ClampToEdge,
-        wrap_ver: gl.Wrap = .ClampToEdge,
-        filter_min: gl.FilterMin = .Nearest,
-        filter_mag: gl.FilterMag = .Nearest,
+        wrap_hor: Wrap = .ClampToEdge,
+        wrap_ver: Wrap = .ClampToEdge,
+        filter_min: FilterMin = .Nearest,
+        filter_mag: FilterMag = .Nearest,
     };
 
     /// image argument should be either Image(u8) or Image(f32)
@@ -28,30 +28,26 @@ pub const Texture = struct {
         var texture: @This() = undefined;
         texture.size = image.size;
 
-        gl.activeTexture(0);
-        texture.id = gl.genTexture();
+        gl.glGenTextures(1, &texture.id);
         errdefer texture.delete();
-        gl.bindTexture(.Texture2D, texture.id);
+        gl.glActiveTexture(gl.GL_TEXTURE0);
+        gl.glBindTexture(gl.GL_TEXTURE_2D, texture.id);
 
-        texture.setWrap(parameters.wrap_hor, parameters.wrap_ver);
-        texture.setFilterMin(parameters.filter_min);
-        texture.setFilterMag(parameters.filter_mag);
-
-        const internal_format: gl.InternalFormat = switch(ImageComponentT) {
+        const internal_format: gl.GLint = switch(ImageComponentT) {
 
             u8 => switch(image.components_per_pixel) {
-                1 => .R8,
-                2 => .RG8,
-                3 => .RGB8,
-                4 => .RGBA8,
+                1 => gl.GL_R8,
+                2 => gl.GL_RG8,
+                3 => gl.GL_RGB8,
+                4 => gl.GL_RGBA8,
                 else => return error.UnsupportedImagePixelComponentCount,
             },
 
             f32 => switch (image.components_per_pixel) {
-                1 => .R32F,
-                2 => .RG32F,
-                3 => .RGB32F,
-                4 => .RGBA32F,
+                1 => gl.GL_R32F,
+                2 => gl.GL_RG32F,
+                3 => gl.GL_RGB32F,
+                4 => gl.GL_RGBA32F,
                 else => return error.UnsupportedImagePixelComponentCount,
             },
 
@@ -59,48 +55,75 @@ pub const Texture = struct {
 
         };
 
-        const format: gl.Format = switch(image.components_per_pixel) {
-            1 => .R,
-            2 => .RG,
-            3 => .RGB,
-            4 => .RGBA,
+        const format: gl.GLenum = switch(image.components_per_pixel) {
+            1 => gl.GL_R,
+            2 => gl.GL_RG,
+            3 => gl.GL_RGB,
+            4 => gl.GL_RGBA,
             else => return error.UnsupportedImagePixelComponentCount,
         };
 
         const component_type = switch(ImageComponentT) {
-            u8  => .U8,
-            f32 => .F32,
+            u8  => gl.GL_UNSIGNED_BYTE,
+            f32 => gl.GL_FLOAT,
             else => return error.UnsupportedImagePixelComponentType,
         };
 
-        gl.texImage2D(.Texture2D, 0, internal_format, texture.size[0], texture.size[1],
-            format, component_type, @ptrCast(image.data.ptr));
+        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, internal_format, @intCast(texture.size[0]), @intCast(texture.size[1]),
+            0, format, component_type, @ptrCast(image.data));
 
+        texture.setWrap(parameters.wrap_hor, parameters.wrap_ver);
+        texture.setFilterMin(parameters.filter_min);
+        texture.setFilterMag(parameters.filter_mag);
+        
         return texture;
 
     }
 
     pub fn delete(self: *const @This()) void {
-        gl.deleteTexture(self.id);
+        gl.glDeleteTextures(1, &self.id);
     }
 
-    pub fn setWrap(self: *const @This(), wrap_hor: gl.Wrap, wrap_ver: gl.Wrap) void {
-        gl.activeTexture(0);
-        gl.bindTexture(.Texture2D, self.id);
-        gl.texParameter(.Texture2D, .WrapHor, wrap_hor);
-        gl.texParameter(.Texture2D, .WrapVer, wrap_ver);
+    pub const Wrap = enum(gl.GLint) {
+        ClampToEdge         = gl.GL_CLAMP_TO_EDGE,
+        ClampToBorder       = gl.GL_CLAMP_TO_BORDER,
+        MirroredRepeat      = gl.GL_MIRRORED_REPEAT,
+        Repeat              = gl.GL_REPEAT,
+        MirrorClampToEdge   = gl.GL_MIRROR_CLAMP_TO_EDGE,
+    };
+
+    pub fn setWrap(self: *const @This(), wrap_hor: Wrap, wrap_ver: Wrap) void {
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.id);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, @intFromEnum(wrap_hor));
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, @intFromEnum(wrap_ver));
     }
 
-    pub fn setFilterMin(self: *const @This(), filter: gl.FilterMin) void {
-        gl.activeTexture(0);
-        gl.bindTexture(.Texture2D, self.id);
-        gl.texParameter(.Texture2D, .FilterMin, filter);
+    pub const FilterMin = enum(gl.GLint) {
+        Nearest                 = gl.GL_NEAREST,
+        Linear                  = gl.GL_LINEAR,
+        NearestMipmapNearest    = gl.GL_NEAREST_MIPMAP_NEAREST,
+        LinearMipmapNearest     = gl.GL_LINEAR_MIPMAP_NEAREST,
+        NearestMipmapLinear     = gl.GL_NEAREST_MIPMAP_LINEAR,
+        LinearMipmapLinear      = gl.GL_LINEAR_MIPMAP_LINEAR, 
+    };
+
+    pub fn setFilterMin(self: *const @This(), filter: FilterMin) void {
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.id);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, @intFromEnum(filter));
     }
 
-    pub fn setFilterMag(self: *const @This(), filter: gl.FilterMag) void {
-        gl.activeTexture(0);
-        gl.bindTexture(.Texture2D, self.id);
-        gl.texParameter(.Texture2D, .FilterMag, filter);
+    pub const FilterMag = enum(gl.GLint) {
+        Nearest = gl.GL_NEAREST,
+        Linear  = gl.GL_LINEAR,
+    };
+
+    pub fn setFilterMag(self: *const @This(), filter: FilterMag) void {
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.id);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, @intFromEnum(filter));
+    }
+    
+    pub fn generateMipmaps(self: *const @This()) void {
+        gl.glGenerateTextureMipmap(self.id);
     }
 
 };

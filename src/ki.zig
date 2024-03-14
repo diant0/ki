@@ -18,10 +18,11 @@ pub const time = struct {
 pub const ansi  = @import("ansi.zig");
 pub const log   = @import("log.zig");
 
-pub const Window = @import("window.zig").Window;
+pub const Window = @import("Window.zig").Window;
 
-pub const Image     = @import("rendering/Image.zig").Image;
-pub const Texture   = @import("rendering/Texture.zig").Texture;
+pub const Image         = @import("rendering/Image.zig").Image;
+pub const Texture       = @import("rendering/Texture.zig").Texture;
+pub const SpriteBatch   = @import("rendering/SpriteBatch.zig").SpriteBatch;
 
 pub const Version = struct {
 

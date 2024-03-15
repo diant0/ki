@@ -2,8 +2,8 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
 
-    const module = b.addModule("gl", .{
-        .root_source_file = .{ .path = "src/gl.zig" },
+    const module = b.addModule("glad", .{
+        .root_source_file = .{ .path = "src/glad.zig" },
     });
     module.addIncludePath(.{ .path = "glad" });
 
@@ -13,8 +13,8 @@ pub fn build(b: *std.Build) !void {
     const optimize  = b.standardOptimizeOption(.{});
 
     const lib = b.addStaticLibrary(.{
-        .name               = "gl",
-        .root_source_file   = .{ .path = "src/gl.zig" },
+        .name               = "glad",
+        .root_source_file   = .{ .path = "src/glad.zig" },
         .target             = target,
         .optimize           = optimize,
     });

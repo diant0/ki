@@ -1,5 +1,5 @@
 const std   = @import("std");
-const gl    = @import("gl");
+const gl    = @import("glad");
 const Image = @import("Image.zig").Image;
 
 pub const Texture = struct {

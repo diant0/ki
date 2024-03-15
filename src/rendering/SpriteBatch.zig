@@ -1,5 +1,5 @@
 const std       = @import("std");
-const gl        = @import("gl");
+const gl        = @import("glad");
 const math      = @import("math");
 const Texture   = @import("Texture.zig").Texture;
 

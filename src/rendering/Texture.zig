@@ -29,7 +29,7 @@ pub const Texture = struct {
         texture.size = image.size;
 
         gl.glGenTextures(1, &texture.id);
-        errdefer texture.delete();
+        errdefer texture.free();
         gl.glActiveTexture(gl.GL_TEXTURE0);
         gl.glBindTexture(gl.GL_TEXTURE_2D, texture.id);
 
@@ -80,7 +80,7 @@ pub const Texture = struct {
 
     }
 
-    pub fn delete(self: *const @This()) void {
+    pub fn free(self: *const @This()) void {
         gl.glDeleteTextures(1, &self.id);
     }
 

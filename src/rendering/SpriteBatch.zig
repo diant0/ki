@@ -37,7 +37,7 @@ pub const SpriteBatch = struct {
 
     white_pixel_texture: Texture = undefined,
 
-    pub fn initAlloc(allocator: std.mem.Allocator, quad_capacity: usize) !@This() {
+    pub fn createAlloc(allocator: std.mem.Allocator, quad_capacity: usize) !@This() {
 
         var batch: @This() = .{};
 
@@ -202,9 +202,9 @@ pub const SpriteBatch = struct {
 
     }
 
-    pub fn delete(self: *@This(), allocator: std.mem.Allocator) void {
+    pub fn free(self: *@This(), allocator: std.mem.Allocator) void {
         allocator.free(self.vertex_buffer);
-        self.white_pixel_texture.delete();
+        self.white_pixel_texture.free();
         gl.glDeleteProgram(self.shader_program);
         gl.glDeleteBuffers(1, &self.vbo);
         gl.glDeleteBuffers(1, &self.ibo);

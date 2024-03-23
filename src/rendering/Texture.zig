@@ -1,12 +1,13 @@
 const std   = @import("std");
+const math  = @import("math");
 const gl    = @import("glad");
 const Image = @import("Image.zig").Image;
 
 pub const Texture = struct {
 
-    id: gl.GLuint,
-    size: @Vector(2, u32),
-    channels: u32,
+    id: gl.GLuint           = math.maxValue(gl.GLuint),
+    size: @Vector(2, u32)   = @splat(0),
+    channels: u32           = 0,
 
     pub const Parameters = struct {
         wrap_hor: Wrap = .ClampToEdge,

@@ -34,8 +34,8 @@ pub const Window = struct {
 
     };
 
-    handle: *glfw.GLFWwindow,
-    size: @Vector(2, u32),
+    handle: *glfw.GLFWwindow    = undefined,
+    size: @Vector(2, u32)       = @splat(0),
 
     pub inline fn init(self: *@This(), title: [:0]const u8, size: @Vector(2, u32)) !void {
         

@@ -37,32 +37,30 @@ pub const SpriteBatch = struct {
 
     white_pixel_texture: Texture = undefined,
 
-    pub fn createAlloc(allocator: std.mem.Allocator, quad_capacity: usize) !@This() {
+    pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator, quad_capacity: usize) !void {
 
-        var batch: @This() = .{};
+        self.vertex_buffer = try allocator.alloc(Vertex, quad_capacity * 4);
+        self.quad_capacity = quad_capacity;
 
-        batch.vertex_buffer = try allocator.alloc(Vertex, quad_capacity * 4);
-        batch.quad_capacity = quad_capacity;
-
-        for (batch.uniforms.samplers, 0..) | _, i | {
-            batch.uniforms.samplers[i] = @intCast(i);
+        for (self.uniforms.samplers, 0..) | _, i | {
+            self.uniforms.samplers[i] = @intCast(i);
         }
 
-        batch.max_texture_units = blk: {
+        self.max_texture_units = blk: {
             var x: gl.GLint = undefined;
             gl.glGetIntegerv(gl.GL_MAX_TEXTURE_IMAGE_UNITS, &x);
             break :blk @intCast(x);
         };
 
-        gl.glGenVertexArrays(1, &batch.vao);
-        gl.glBindVertexArray(batch.vao);
+        gl.glGenVertexArrays(1, &self.vao);
+        gl.glBindVertexArray(self.vao);
 
-        gl.glGenBuffers(1, &batch.vbo);
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, batch.vbo);
-        gl.glBufferData(gl.GL_ARRAY_BUFFER, @intCast(@sizeOf(Vertex) * batch.vertex_buffer.len), null, gl.GL_DYNAMIC_DRAW);
+        gl.glGenBuffers(1, &self.vbo);
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo);
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, @intCast(@sizeOf(Vertex) * self.vertex_buffer.len), null, gl.GL_DYNAMIC_DRAW);
 
-        gl.glGenBuffers(1, &batch.ibo);
-        gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, batch.ibo);
+        gl.glGenBuffers(1, &self.ibo);
+        gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self.ibo);
 
         {
             var index_buffer = try allocator.alloc(u32, quad_capacity * 6);
@@ -145,22 +143,22 @@ pub const SpriteBatch = struct {
             
         };
 
-        batch.shader_program = gl.glCreateProgram();
-        gl.glAttachShader(batch.shader_program, vertex_shader);
-        gl.glAttachShader(batch.shader_program, fragment_shader);
+        self.shader_program = gl.glCreateProgram();
+        gl.glAttachShader(self.shader_program, vertex_shader);
+        gl.glAttachShader(self.shader_program, fragment_shader);
 
-        gl.glLinkProgram(batch.shader_program);
-        gl.glValidateProgram(batch.shader_program);
+        gl.glLinkProgram(self.shader_program);
+        gl.glValidateProgram(self.shader_program);
 
-        gl.glDetachShader(batch.shader_program, vertex_shader);
-        gl.glDetachShader(batch.shader_program, fragment_shader);
+        gl.glDetachShader(self.shader_program, vertex_shader);
+        gl.glDetachShader(self.shader_program, fragment_shader);
 
         gl.glDeleteShader(vertex_shader);
         gl.glDeleteShader(fragment_shader);
 
         inline for (@typeInfo(Vertex).Struct.fields) | vert_attrib | {
                 
-            const location: gl.GLuint = @intCast(gl.glGetAttribLocation(batch.shader_program, vert_attrib.name));
+            const location: gl.GLuint = @intCast(gl.glGetAttribLocation(self.shader_program, vert_attrib.name));
 
             gl.glEnableVertexAttribArray(location);
 
@@ -185,20 +183,18 @@ pub const SpriteBatch = struct {
         }
 
         inline for (@typeInfo(Uniforms).Struct.fields, 0..) | uniform, i |
-            batch.uniform_locations[i] = gl.glGetUniformLocation(batch.shader_program, uniform.name);
+            self.uniform_locations[i] = gl.glGetUniformLocation(self.shader_program, uniform.name);
 
-        gl.glGenTextures(1, &batch.white_pixel_texture.id);
-        batch.white_pixel_texture.setFilterMin(.Nearest);
-        batch.white_pixel_texture.setFilterMag(.Nearest);
-        batch.white_pixel_texture.setWrap(.ClampToEdge, .ClampToEdge);
+        gl.glGenTextures(1, &self.white_pixel_texture.id);
+        self.white_pixel_texture.setFilterMin(.Nearest);
+        self.white_pixel_texture.setFilterMag(.Nearest);
+        self.white_pixel_texture.setWrap(.ClampToEdge, .ClampToEdge);
 
         const white_pixel_image_data = [_]u8 { 255, 255, 255, 255 };
-        gl.glBindTexture(gl.GL_TEXTURE_2D, batch.white_pixel_texture.id);
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.white_pixel_texture.id);
         gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA8, 1, 1, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, @ptrCast(&white_pixel_image_data));
-        batch.white_pixel_texture.size = @splat(1);
-        batch.white_pixel_texture.channels = 4;
-
-        return batch;
+        self.white_pixel_texture.size = @splat(1);
+        self.white_pixel_texture.channels = 4;
 
     }
 

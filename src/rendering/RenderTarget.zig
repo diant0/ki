@@ -10,7 +10,7 @@ pub const RenderTarget = struct {
     };
 
     framebuffer:        gl.GLuint   = 0,
-    rgba_texture:       Texture     = undefined,
+    rgba_texture:       Texture     = .{},
     depth_renderbuffer: gl.GLuint   = 0,
     shader_program:     gl.GLuint   = 0,
     vao:                gl.GLuint   = 0,
@@ -26,35 +26,33 @@ pub const RenderTarget = struct {
         filter_mag: Texture.FilterMag = .Nearest,
     };
 
-    pub fn create(size: @Vector(2, u32), parameters: Parameters) @This() {
+    pub fn init(self: *@This(), size: @Vector(2, u32), parameters: Parameters) void {
 
-        var result: @This() = .{};
+        gl.glGenFramebuffers(1, &self.framebuffer);
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self.framebuffer);
 
-        gl.glGenFramebuffers(1, &result.framebuffer);
-        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, result.framebuffer);
+        gl.glGenTextures(1, &self.rgba_texture.id);
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.rgba_texture.id);
+        self.rgba_texture.setFilterMin(parameters.filter_min);
+        self.rgba_texture.setFilterMag(parameters.filter_mag);
+        self.rgba_texture.setWrap(.ClampToEdge, .ClampToEdge);
 
-        gl.glGenTextures(1, &result.rgba_texture.id);
-        gl.glBindTexture(gl.GL_TEXTURE_2D, result.rgba_texture.id);
-        result.rgba_texture.setFilterMin(parameters.filter_min);
-        result.rgba_texture.setFilterMag(parameters.filter_mag);
-        result.rgba_texture.setWrap(.ClampToEdge, .ClampToEdge);
+        gl.glGenRenderbuffers(1, &self.depth_renderbuffer);
+        gl.glBindRenderbuffer(gl.GL_RENDERBUFFER, self.depth_renderbuffer);
 
-        gl.glGenRenderbuffers(1, &result.depth_renderbuffer);
-        gl.glBindRenderbuffer(gl.GL_RENDERBUFFER, result.depth_renderbuffer);
+        self.resize(size);
 
-        result.resize(size);
-
-        gl.glFramebufferTexture(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0, result.rgba_texture.id, 0);
-        gl.glFramebufferRenderbuffer(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_RENDERBUFFER, result.depth_renderbuffer);
+        gl.glFramebufferTexture(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0, self.rgba_texture.id, 0);
+        gl.glFramebufferRenderbuffer(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_RENDERBUFFER, self.depth_renderbuffer);
 
         gl.glDrawBuffers(1, &[_]gl.GLenum { gl.GL_COLOR_ATTACHMENT0 });
 
         gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0);
 
-        gl.glGenVertexArrays(1, &result.vao);
-        gl.glBindVertexArray(result.vao);
+        gl.glGenVertexArrays(1, &self.vao);
+        gl.glBindVertexArray(self.vao);
 
-        result.vbo = blk: {
+        self.vbo = blk: {
 
             var buffer: gl.GLuint = undefined;
             gl.glGenBuffers(1, &buffer);
@@ -78,7 +76,7 @@ pub const RenderTarget = struct {
 
         };
 
-        result.shader_program = blk: {
+        self.shader_program = blk: {
 
             const vertex_shader_src: [*c]const u8 =
                 \\ #version 330 core
@@ -135,18 +133,16 @@ pub const RenderTarget = struct {
 
         };
 
-        const pos_vertex_attrib_location: gl.GLuint = @intCast(gl.glGetAttribLocation(result.shader_program, "pos"));
+        const pos_vertex_attrib_location: gl.GLuint = @intCast(gl.glGetAttribLocation(self.shader_program, "pos"));
         gl.glEnableVertexAttribArray(pos_vertex_attrib_location);
         gl.glVertexAttribPointer(pos_vertex_attrib_location, 2, gl.GL_FLOAT, gl.GL_FALSE, @sizeOf(Vertex), @ptrFromInt(@offsetOf(Vertex, "pos")));
 
-        const uv_vertex_attrib_location: gl.GLuint = @intCast(gl.glGetAttribLocation(result.shader_program, "uv"));
+        const uv_vertex_attrib_location: gl.GLuint = @intCast(gl.glGetAttribLocation(self.shader_program, "uv"));
         gl.glEnableVertexAttribArray(uv_vertex_attrib_location);
         gl.glVertexAttribPointer(uv_vertex_attrib_location, 2, gl.GL_FLOAT, gl.GL_FALSE, @sizeOf(Vertex), @ptrFromInt(@offsetOf(Vertex, "uv")));
 
-        result.rgba_texture_loc = gl.glGetUniformLocation(result.shader_program, "texture");
-        result.transform_loc    = gl.glGetUniformLocation(result.shader_program, "transform");
-
-        return result;
+        self.rgba_texture_loc = gl.glGetUniformLocation(self.shader_program, "texture");
+        self.transform_loc    = gl.glGetUniformLocation(self.shader_program, "transform");
 
     }
 
@@ -231,6 +227,5 @@ pub const RenderTarget = struct {
         gl.glDrawArrays(gl.GL_TRIANGLES, 0, 6);
 
     }
-
 
 };

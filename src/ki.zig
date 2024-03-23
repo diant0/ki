@@ -24,6 +24,7 @@ pub const gl     = c.glad;
 pub const Image         = @import("rendering/Image.zig").Image;
 pub const Texture       = @import("rendering/Texture.zig").Texture;
 pub const SpriteBatch   = @import("rendering/SpriteBatch.zig").SpriteBatch;
+pub const RenderTarget  = @import("rendering/RenderTarget.zig").RenderTarget;
 
 pub const Version = struct {
 

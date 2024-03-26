@@ -17,6 +17,10 @@ pub const Window = struct {
             
             const ret_code = glfw.glfwInit();
             if (ret_code != glfw.GLFW_TRUE) {
+                var glfw_error_description_buffer: [2048]u8 = undefined;
+                var glfw_error_description_ptr: [*c]u8 = @ptrCast(&glfw_error_description_buffer);
+                const glfw_error_number = glfw.glfwGetError(&glfw_error_description_ptr);
+                log.print(.Error, "glfw error {}: {s}\n", .{ glfw_error_number, glfw_error_description_ptr });
                 return error.GLFWInitFailed;
             }
 

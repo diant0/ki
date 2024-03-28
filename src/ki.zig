@@ -11,9 +11,7 @@ pub const c = struct {
 
 pub const math  = @import("math");
 
-pub const time = struct {
-    pub const Time = @import("time/Time.zig").Time;
-};
+pub const Time = @import("time/Time.zig").Time;
 
 pub const ansi  = @import("ansi.zig");
 pub const log   = @import("log.zig");

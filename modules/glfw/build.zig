@@ -16,10 +16,19 @@ pub fn build(b: *std.Build) !void {
     const build_platform_x11        = b.option(bool, "x11",       "build x11 platform")     orelse true;
 
     if (target.result.os.tag == .linux) {
+    
         if (!build_platform_x11 and !build_platform_wayland) {
             return error.NoPlatformForLinuxSelected;
         }
+
+        if (build_platform_wayland) {
+            try generateWaylandHeaders(b);
+        }
+    
     }
+
+    const generated_wayland_headers_path = try b.cache_root.handle.realpathAlloc(b.allocator, cache_subpath);
+    defer b.allocator.free(generated_wayland_headers_path);
 
     // --------------------------------
     
@@ -32,7 +41,13 @@ pub fn build(b: *std.Build) !void {
     switch (target.result.os.tag) {
 
         .linux => {
+
             module.addIncludePath(.{ .path = "/usr/include" });
+
+            if (build_platform_wayland) {
+                module.addIncludePath(.{ .path = generated_wayland_headers_path });
+            }
+        
         },
 
         else => return error.UnsupportedOS,
@@ -46,6 +61,24 @@ pub fn build(b: *std.Build) !void {
         .target             = target,
         .optimize           = optimize,
     });
+
+    switch (target.result.os.tag) {
+
+        .linux => {
+
+            lib.addIncludePath(.{ .path = "/usr/include" });
+
+            if (build_platform_wayland) {
+                lib.addIncludePath(.{ .path = generated_wayland_headers_path });
+            }
+
+            lib.linkLibC();
+        
+        },
+
+        else => return error.UnsupportedOS,
+
+    }
 
     b.installArtifact(lib);
 
@@ -65,34 +98,18 @@ pub fn build(b: *std.Build) !void {
     switch (target.result.os.tag) {
 
         .linux => {
-
-            lib.addIncludePath(.{ .path = "/usr/include" });
+            
             try c_src.appendSlice(c_src_platform_linux);
 
-            lib.linkLibC();
-            
-            module.addLibraryPath(.{ .path = "/usr/lib" });
-
             if (build_platform_x11) {
-
                 try c_src.appendSlice(c_src_platform_x11);
                 try c_flags.append(c_flag_build_x11);
-
             }
 
             if (build_platform_wayland) {
-
-                try generateWaylandCode(b);
-
-                const generated_wayland_code_abspath = try b.cache_root.handle.realpathAlloc(b.allocator, generated_wayland_code_subpath);
-                defer b.allocator.free(generated_wayland_code_abspath);
-                lib.addIncludePath(.{ .path = generated_wayland_code_abspath });
-            
                 try c_src.appendSlice(c_src_platform_wayland);
                 try c_flags.append(c_flag_build_wayland);
-
             }
-
 
         },
 
@@ -109,17 +126,16 @@ pub fn build(b: *std.Build) !void {
 
 }
 
-/// relative to cache dir
-const generated_wayland_code_subpath = "glfw";
+const cache_subpath = "glfw";
 
-pub fn generateWaylandCode(b: *std.Build) !void {
+fn generateWaylandHeaders(b: *std.Build) !void {
 
     const cache_dir = b.cache_root.handle;
     const cache_dir_path = try b.cache_root.handle.realpathAlloc(b.allocator, ".");
 
     const wayland_scanner_program = try b.findProgram(&.{ "wayland-scanner" }, &.{ "" });
 
-    const generated_code_dir = try cache_dir.makeOpenPath(generated_wayland_code_subpath, .{});
+    const generated_code_dir = try cache_dir.makeOpenPath(cache_subpath, .{});
 
     const protocols_dir_path = try b.build_root.handle.realpathAlloc(b.allocator, repo_path ++ "/deps/wayland");
     defer b.allocator.free(protocols_dir_path);
@@ -142,7 +158,7 @@ pub fn generateWaylandCode(b: *std.Build) !void {
         var output_file_path_buf: [4096]u8 = undefined;
 
         const client_header_path = try std.fmt.bufPrint(&output_file_path_buf, "{s}/{s}/{s}-client-protocol.h",
-            .{ cache_dir_path, generated_wayland_code_subpath, protocol_name });
+            .{ cache_dir_path, cache_subpath, protocol_name });
 
         const genereted_client_header_file = generated_code_dir.openFile(client_header_path, .{}) catch | e | blk: {
 
@@ -169,7 +185,7 @@ pub fn generateWaylandCode(b: *std.Build) !void {
         genereted_client_header_file.close();
 
         const private_code_path = try std.fmt.bufPrint(&output_file_path_buf, "{s}/{s}/{s}-client-protocol-code.h",
-            .{ b.cache_root.path.?, generated_wayland_code_subpath, protocol_name });
+            .{ b.cache_root.path.?, cache_subpath, protocol_name });
 
         const genereted_private_code_file = generated_code_dir.openFile(private_code_path, .{}) catch | e | blk: {
 

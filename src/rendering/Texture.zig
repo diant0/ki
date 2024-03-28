@@ -14,6 +14,7 @@ pub const Texture = struct {
         wrap_ver: Wrap = .ClampToEdge,
         filter_min: FilterMin = .Nearest,
         filter_mag: FilterMag = .Nearest,
+        generate_mipmaps: bool = false,
     };
 
     /// image argument should be either Image(u8) or Image(f32)
@@ -76,6 +77,10 @@ pub const Texture = struct {
         texture.setWrap(parameters.wrap_hor, parameters.wrap_ver);
         texture.setFilterMin(parameters.filter_min);
         texture.setFilterMag(parameters.filter_mag);
+        
+        if (parameters.generate_mipmaps) {
+            texture.generateMipmaps();
+        }
         
         return texture;
 

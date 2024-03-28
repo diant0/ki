@@ -7,7 +7,7 @@ pub fn Image(ComponentT: type) type {
 
         size: @Vector(2, u32) = @splat(0),
         components_per_pixel: u32 = 0,
-        data: []const ComponentT,
+        data: []ComponentT,
 
         pub fn alloc(allocator: std.mem.Allocator, size: @Vector(2, u32), comptime components_per_pixel: u32, color: @Vector(components_per_pixel, ComponentT)) !@This() {
 
@@ -32,7 +32,7 @@ pub fn Image(ComponentT: type) type {
         /// .data of returned struct needs to be freed, does not internally hold *Allocator.
         /// some temporary allocations will be performed with passed allocator,
         /// as well as stbi's internal allocations
-        pub fn stbiDecodeFromRelToExePathAlloc(allocator: std.mem.Allocator, path: []const u8, desrired_components: STBIPixelComponents) !@This() {
+        pub fn stbiDecodeFromPathRelToExeAlloc(allocator: std.mem.Allocator, path: []const u8, desrired_components: STBIPixelComponents) !@This() {
 
             const exe_dir_path = try std.fs.selfExeDirPathAlloc(allocator);
             defer allocator.free(exe_dir_path);
@@ -224,7 +224,7 @@ pub fn Image(ComponentT: type) type {
         pub const QOIPixelComponents = enum(c_int) { Any = 0, RGB = 3, RGBA = 4, };
         /// .data of returned struct needs to be freed, does not internally hold *Allocator.
         /// qoi will perform temporary allocations
-        pub fn qoiDecodeFromRelToExePathAlloc(allocator: std.mem.Allocator, path: []const u8, desrired_components: QOIPixelComponents) !@This() {
+        pub fn qoiDecodeFromPathRelToExeAlloc(allocator: std.mem.Allocator, path: []const u8, desrired_components: QOIPixelComponents) !@This() {
 
             const exe_dir_path = try std.fs.selfExeDirPathAlloc(allocator);
             defer allocator.free(exe_dir_path);

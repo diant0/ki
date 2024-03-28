@@ -97,6 +97,22 @@ pub fn Image(ComponentT: type) type {
         
         pub const STBIWFormat = enum { png, bmp, tga, hdr, jpg };
         /// stbiw will perform temporary allocations
+        /// some temporary allocations will be performed with passed allocator, no need to free anything
+        pub fn stbiwEncodeToPathRelToExeTempAlloc(self: *const @This(), allocator: std.mem.Allocator, path: []const u8, format: STBIWFormat) !void {
+
+            const exe_dir_path = try std.fs.selfExeDirPathAlloc(allocator);
+            defer allocator.free(exe_dir_path);
+            
+            var abs_path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+            const abs_path = try std.fmt.bufPrint(&abs_path_buffer, "{s}/{s}", .{ exe_dir_path, path });
+            const abs_path_heap = try allocator.dupe(u8, abs_path);
+            defer allocator.free(abs_path_heap);
+
+            return try self.stbiwEncodeToAbsPath(abs_path, format);
+
+        }
+
+        /// stbiw will perform temporary allocations
         pub fn stbiwEncodeToAbsPath(self: *const @This(), path: []const u8, format: STBIWFormat) !void {
 
             const file = std.fs.createFileAbsolute(path, .{}) catch | e | blk: {
@@ -280,7 +296,23 @@ pub fn Image(ComponentT: type) type {
             };
             
         }
-        
+
+        /// qoi will perform temporary allocations
+        /// some temporary allocations will be performed with passed allocator, no need to free anything
+        pub fn qoiEncodeToPathRelToExeTempAlloc(self: *const @This(), allocator: std.mem.Allocator, path: []const u8) !void {
+
+            const exe_dir_path = try std.fs.selfExeDirPathAlloc(allocator);
+            defer allocator.free(exe_dir_path);
+            
+            var abs_path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+            const abs_path = try std.fmt.bufPrint(&abs_path_buffer, "{s}/{s}", .{ exe_dir_path, path });
+            const abs_path_heap = try allocator.dupe(u8, abs_path);
+            defer allocator.free(abs_path_heap);
+
+            return try self.qoiEncodeToAbsPath(abs_path);
+
+        }
+
         /// qoi will perform temporary allocations
         pub fn qoiEncodeToAbsPath(self: *const @This(), path: []const u8) !void {
 

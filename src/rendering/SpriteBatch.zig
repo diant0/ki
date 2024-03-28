@@ -2,6 +2,7 @@ const std       = @import("std");
 const gl        = @import("glad");
 const math      = @import("math");
 const Texture   = @import("Texture.zig").Texture;
+const Image     = @import("Image.zig").Image;
 
 pub const SpriteBatch = struct {
 
@@ -185,16 +186,14 @@ pub const SpriteBatch = struct {
         inline for (@typeInfo(Uniforms).Struct.fields, 0..) | uniform, i |
             self.uniform_locations[i] = gl.glGetUniformLocation(self.shader_program, uniform.name);
 
-        gl.glGenTextures(1, &self.white_pixel_texture.id);
-        self.white_pixel_texture.setFilterMin(.Nearest);
-        self.white_pixel_texture.setFilterMag(.Nearest);
-        self.white_pixel_texture.setWrap(.ClampToEdge, .ClampToEdge);
+        self.white_pixel_texture = blk: {
 
-        const white_pixel_image_data = [_]u8 { 255, 255, 255, 255 };
-        gl.glBindTexture(gl.GL_TEXTURE_2D, self.white_pixel_texture.id);
-        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA8, 1, 1, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, @ptrCast(&white_pixel_image_data));
-        self.white_pixel_texture.size = @splat(1);
-        self.white_pixel_texture.channels = 4;
+            const image = try Image(u8).alloc(allocator, @splat(1), 4, @splat(255));
+            const texture = try Texture.fromImage(image, .{});
+            image.free(allocator);
+            break :blk texture;
+
+        };
 
     }
 

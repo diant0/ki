@@ -9,6 +9,25 @@ pub fn Image(ComponentT: type) type {
         components_per_pixel: u32 = 0,
         data: []const ComponentT,
 
+        pub fn alloc(allocator: std.mem.Allocator, size: @Vector(2, u32), comptime components_per_pixel: u32, color: @Vector(components_per_pixel, ComponentT)) !@This() {
+
+            const data = try allocator.alloc(ComponentT, size[0] * size[1] * components_per_pixel);
+            
+            for (0..(size[0] * size[1])) | pixel_index | {
+                const component_pixel_offset = pixel_index * components_per_pixel;
+                for (0..components_per_pixel) | component_index | {
+                    data[component_pixel_offset + component_index] = color[component_index];
+                }
+            }
+
+            return .{
+                .size = size,
+                .components_per_pixel = components_per_pixel,
+                .data = data,
+            };
+
+        }
+
         pub const STBIPixelComponents = enum(c_int) { Any = 0, R = 1, RA = 2, RGB = 3, RGBA = 4, };
         /// .data of returned struct needs to be freed, does not internally hold *Allocator.
         /// some temporary allocations will be performed with passed allocator,
@@ -322,9 +341,7 @@ pub fn Image(ComponentT: type) type {
 
         }
 
-        pub fn free(self: *@This(), allocator: std.mem.Allocator) void {
-            self.size = @splat(0);
-            self.components_per_pixel = 0;
+        pub fn free(self: *const @This(), allocator: std.mem.Allocator) void {
             allocator.free(self.data);
         }
 

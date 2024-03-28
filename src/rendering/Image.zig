@@ -13,6 +13,22 @@ pub fn Image(ComponentT: type) type {
         /// .data of returned struct needs to be freed, does not internally hold *Allocator.
         /// some temporary allocations will be performed with passed allocator,
         /// as well as stbi's internal allocations
+        pub fn stbiDecodeFromRelToExePathAlloc(allocator: std.mem.Allocator, path: []const u8, desrired_components: STBIPixelComponents) !@This() {
+
+            const exe_dir_path = try std.fs.selfExeDirPathAlloc(allocator);
+            defer allocator.free(exe_dir_path);
+            var exe_dir = try std.fs.openDirAbsolute(exe_dir_path, .{});
+
+            const abs_path = try exe_dir.realpathAlloc(allocator, path);
+            defer allocator.free(abs_path);
+
+            return try stbiDecodeFromAbsPathAlloc(allocator, abs_path, desrired_components);
+
+        }
+
+        /// .data of returned struct needs to be freed, does not internally hold *Allocator.
+        /// some temporary allocations will be performed with passed allocator,
+        /// as well as stbi's internal allocations
         pub fn stbiDecodeFromAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8, desired_components: STBIPixelComponents) !@This() {
 
             const file = try std.fs.openFileAbsolute(path, .{});
@@ -187,6 +203,21 @@ pub fn Image(ComponentT: type) type {
         }
 
         pub const QOIPixelComponents = enum(c_int) { Any = 0, RGB = 3, RGBA = 4, };
+        /// .data of returned struct needs to be freed, does not internally hold *Allocator.
+        /// qoi will perform temporary allocations
+        pub fn qoiDecodeFromRelToExePathAlloc(allocator: std.mem.Allocator, path: []const u8, desrired_components: QOIPixelComponents) !@This() {
+
+            const exe_dir_path = try std.fs.selfExeDirPathAlloc(allocator);
+            defer allocator.free(exe_dir_path);
+            var exe_dir = try std.fs.openDirAbsolute(exe_dir_path, .{});
+
+            const abs_path = try exe_dir.realpathAlloc(allocator, path);
+            defer allocator.free(abs_path);
+
+            return try qoiDecodeFromAbsPathAlloc(allocator, abs_path, desrired_components);
+
+        }
+
         /// .data of returned struct needs to be freed, does not internally hold *Allocator.
         /// qoi will perform temporary allocations
         pub fn qoiDecodeFromAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8, desired_components: QOIPixelComponents) !@This() {

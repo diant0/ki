@@ -59,9 +59,8 @@ pub const Window = struct {
 
     }
 
-    pub inline fn terminate(self: *const @This(), allocator: std.mem.Allocator) void {
+    pub inline fn terminate(self: *const @This()) void {
         glfw.glfwDestroyWindow(self.handle);
-        allocator.destroy(self);
     }
 
     pub inline fn terminationRequested(self: *const @This()) bool {

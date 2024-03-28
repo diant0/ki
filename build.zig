@@ -46,7 +46,10 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
-    const glad = b.dependency("glad", .{});
+    const glad = b.dependency("glad", .{
+        .target     = target,
+        .optimize   = optimize,
+    });
     module.addImport("glad", glad.module("glad"));
     lib.linkLibrary(glad.artifact("glad"));
 

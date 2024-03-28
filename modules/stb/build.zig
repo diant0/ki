@@ -4,7 +4,21 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
+    const target    = b.standardTargetOptions(.{});
+    const optimize  = b.standardOptimizeOption(.{});
+
+    // --------------------------------
+
     const config = b.addOptions();
+
+    const build_stb_image = b.option(bool, "image", "build stb_image") orelse false;
+    config.addOption(bool, "stb_image", build_stb_image);
+
+    const build_stb_image_write = b.option(bool, "image_write", "build stb_image_write") orelse false;
+    config.addOption(bool, "stb_image_write", build_stb_image_write);
+
+    const build_stb_truetype = b.option(bool, "truetype", "build stb_truetype") orelse false;
+    config.addOption(bool, "stb_truetype", build_stb_truetype);
 
     // --------------------------------
     
@@ -17,9 +31,6 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
-    const target    = b.standardTargetOptions(.{});
-    const optimize  = b.standardOptimizeOption(.{});
-
     const lib = b.addStaticLibrary(.{
         .name               = "stb",
         .root_source_file   = .{ .path = "src/stb.zig" },
@@ -28,31 +39,25 @@ pub fn build(b: *std.Build) !void {
     });
 
     lib.root_module.addOptions("config", config);
-    b.installArtifact(lib);
-
-    // --------------------------------
 
     lib.linkLibC();
-
     lib.addIncludePath(.{ .path = repo_path });
 
-    const build_stb_image = b.option(bool, "image", "build stb_image") orelse false;
-    config.addOption(bool, "stb_image", build_stb_image);
     if (build_stb_image) {
         try addGeneratedStbImpl(lib, "stb_image.h", "STB_IMAGE_IMPLEMENTATION");
     }
 
-    const build_stb_image_write = b.option(bool, "image_write", "build stb_image_write") orelse false;
-    config.addOption(bool, "stb_image_write", build_stb_image_write);
     if (build_stb_image_write) {
         try addGeneratedStbImpl(lib, "stb_image_write.h", "STB_IMAGE_WRITE_IMPLEMENTATION");
     }
 
-    const build_stb_truetype = b.option(bool, "truetype", "build stb_truetype") orelse false;
-    config.addOption(bool, "stb_truetype", build_stb_truetype);
     if (build_stb_truetype) {
         try addGeneratedStbImpl(lib, "stb_truetype.h", "STB_TRUETYPE_IMPLEMENTATION");
     }
+
+    b.installArtifact(lib);
+
+    // --------------------------------
 
 }
 
@@ -60,6 +65,7 @@ const repo_path = "stb";
 const generated_impls_subpath = "stb";
 
 fn addGeneratedStbImpl(compile: *std.Build.Step.Compile, header: []const u8, impl_define: []const u8) !void {
+    
     const b = compile.step.owner;
 
     const cache_dir = b.cache_root.handle;

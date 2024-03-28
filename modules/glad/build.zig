@@ -2,15 +2,19 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
 
+    // --------------------------------
+
+    const target    = b.standardTargetOptions(.{});
+    const optimize  = b.standardOptimizeOption(.{});
+
+    // --------------------------------
+
     const module = b.addModule("glad", .{
         .root_source_file = .{ .path = "src/glad.zig" },
     });
     module.addIncludePath(.{ .path = "glad" });
 
     // --------------------------------
-
-    const target    = b.standardTargetOptions(.{});
-    const optimize  = b.standardOptimizeOption(.{});
 
     const lib = b.addStaticLibrary(.{
         .name               = "glad",
@@ -19,15 +23,14 @@ pub fn build(b: *std.Build) !void {
         .optimize           = optimize,
     });
 
-    b.installArtifact(lib);
-
-    // --------------------------------
-
     lib.linkLibC();
-
     lib.addIncludePath(.{ .path = "glad" });
 
     try addGeneratedGLADImpl(lib, "glad.h", "GLAD_GL_IMPLEMENTATION");
+
+    b.installArtifact(lib);
+
+    // --------------------------------
 
 }
 

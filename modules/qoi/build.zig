@@ -3,7 +3,13 @@ const std = @import("std");
 pub fn build(b: *std.Build) !void {
 
     // --------------------------------
-    
+
+    const target    = b.standardTargetOptions(.{});
+    const optimize  = b.standardOptimizeOption(.{});
+
+    // --------------------------------
+
+
     const module = b.addModule("qoi", .{
         .root_source_file = .{ .path = "src/qoi.zig" },
     });
@@ -12,9 +18,6 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
-    const target    = b.standardTargetOptions(.{});
-    const optimize  = b.standardOptimizeOption(.{});
-
     const lib = b.addStaticLibrary(.{
         .name               = "qoi",
         .root_source_file   = .{ .path = "src/qoi.zig" },
@@ -22,15 +25,14 @@ pub fn build(b: *std.Build) !void {
         .optimize           = optimize,
     });
 
-    b.installArtifact(lib);
-
-    // --------------------------------
-
     lib.linkLibC();
-
     lib.addIncludePath(.{ .path = repo_path });
 
     try addGeneratedQoiImpl(lib, "qoi.h", "QOI_IMPLEMENTATION");
+
+    b.installArtifact(lib);
+
+    // --------------------------------
 
 }
 

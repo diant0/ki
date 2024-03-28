@@ -4,14 +4,16 @@ pub fn build(b: *std.Build) void {
 
     // --------------------------------
 
+    const target    = b.standardTargetOptions(.{});
+    const optimize  = b.standardOptimizeOption(.{});
+
+    // --------------------------------
+
     _ = b.addModule("math", .{
         .root_source_file = .{ .path = "src/math.zig" },
     });
 
     // --------------------------------
-
-    const target    = b.standardTargetOptions(.{});
-    const optimize  = b.standardOptimizeOption(.{});
 
     const tests = b.addTest(.{
         .root_source_file   = .{ .path = "src/math.zig" },

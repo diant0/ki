@@ -4,13 +4,15 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
+    const target    = b.standardTargetOptions(.{});
+    const optimize  = b.standardOptimizeOption(.{});
+
+    // --------------------------------
+
     const update_gamepad_mappings_step = b.step("update-gamepad-mappings", "update gamepad mappings");
     update_gamepad_mappings_step.makeFn = updateGamepadMappings;
 
     // --------------------------------
-
-    const target    = b.standardTargetOptions(.{});
-    const optimize  = b.standardOptimizeOption(.{});
 
     const build_platform_wayland    = b.option(bool, "wayland",   "build wayland platform") orelse true;
     const build_platform_x11        = b.option(bool, "x11",       "build x11 platform")     orelse true;
@@ -62,6 +64,8 @@ pub fn build(b: *std.Build) !void {
         .optimize           = optimize,
     });
 
+    lib.linkLibC();
+
     switch (target.result.os.tag) {
 
         .linux => {
@@ -71,18 +75,12 @@ pub fn build(b: *std.Build) !void {
             if (build_platform_wayland) {
                 lib.addIncludePath(.{ .path = generated_wayland_headers_path });
             }
-
-            lib.linkLibC();
         
         },
 
         else => return error.UnsupportedOS,
 
     }
-
-    b.installArtifact(lib);
-
-    // --------------------------------
 
     var c_src = std.ArrayList([]const u8).init(b.allocator);
     defer c_src.deinit();
@@ -121,6 +119,8 @@ pub fn build(b: *std.Build) !void {
         .files = c_src.items,
         .flags = c_flags.items,
     });
+
+    b.installArtifact(lib);
 
     // --------------------------------
 

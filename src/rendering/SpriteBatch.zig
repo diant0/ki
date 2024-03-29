@@ -321,4 +321,92 @@ pub const SpriteBatch = struct {
         try self.putTexturedRect(rect, self.white_pixel_texture, col);
     }
 
+    pub fn putTexturedLine(self: *@This(), texture: Texture, start: @Vector(2, f32), end: @Vector(2, f32), width: f32, col: @Vector(4, f32)) !void {
+
+        const direction = math.vNormalized(end - start);
+        const offset = math.v2RotatedBy(direction, math.pi / 2.0) * @as(@Vector(2, f32), @splat(width / 2.0));
+
+        const sampler_index: gl.GLfloat = @floatFromInt(try self.putTextureGetIndex(texture));
+
+        try self.putQuadVertices(.{
+            .pos = start - offset,
+            .col = col,
+            .uv = .{ 0.0, 1.0 },
+            .sampler_index = sampler_index,
+        }, .{
+            .pos = end - offset,
+            .col = col,
+            .uv = .{ 1.0, 1.0 },
+            .sampler_index = sampler_index,
+        }, .{
+            .pos = end + offset,
+            .col = col,
+            .uv = .{ 1.0, 0.0 },
+            .sampler_index = sampler_index,
+        }, .{
+            .pos = start + offset,
+            .col = col,
+            .uv = .{ 0.0, 0.0 },
+            .sampler_index = sampler_index,
+        });
+
+    }
+
+    pub fn putColoredLine(self: *@This(), start: @Vector(2, f32), end: @Vector(2, f32), width: f32, col: @Vector(4, f32)) !void {
+        try self.putTexturedLine(self.white_pixel_texture, start, end, width, col);
+    }
+
+    pub fn putColoredLineRect(self: *@This(), rect: @Vector(4, f32), line_width: f32, col: @Vector(4, f32)) !void {
+
+        const bottom_left   = math.rBottomLeft(rect);
+        const bottom_right  = math.rBottomRight(rect);
+        const top_right     = math.rTopRight(rect);
+        const top_left      = math.rTopLeft(rect);
+
+        const offset = line_width / 2.0;
+
+        try self.putColoredLine(bottom_left  + @Vector(2, f32) { offset, 0 }, bottom_right + @Vector(2, f32) { offset, 0 }, line_width, col);
+        try self.putColoredLine(bottom_right + @Vector(2, f32) { 0, offset }, top_right    + @Vector(2, f32) { 0, offset }, line_width, col);
+        try self.putColoredLine(top_right    - @Vector(2, f32) { offset, 0 }, top_left     - @Vector(2, f32) { offset, 0 }, line_width, col);
+        try self.putColoredLine(top_left     - @Vector(2, f32) { 0, offset }, bottom_left  - @Vector(2, f32) { 0, offset }, line_width, col);
+
+    }
+
+    pub fn putTextureSprite(self: *@This(), texture: Texture, uv_rect: @Vector(4, f32), pos: @Vector(2, f32),
+        scale: @Vector(2, f32), anchor: @Vector(2, f32), rotation: f32, col: @Vector(4, f32)) !void {
+
+        const sampler_index: f32 = @floatFromInt(try self.putTextureGetIndex(texture));
+
+        const scaled_size = @as(@Vector(2, f32), @floatFromInt(texture.size)) * (scale * @Vector(2, f32) { uv_rect[2], uv_rect[3] });
+        const pos_relative_to_anchor = @Vector(2, f32) { 0, 0 } - scaled_size * anchor;
+
+        const anchored_at_zero = @Vector(4, f32) {
+            pos_relative_to_anchor[0], pos_relative_to_anchor[1],
+            scaled_size[0], scaled_size[1],
+        };
+
+        try self.putQuadVertices(.{
+            .pos = pos + math.v2RotatedBy(math.rBottomLeft(anchored_at_zero), rotation),
+            .col = col,
+            .uv = math.rTopLeft(uv_rect),
+            .sampler_index = sampler_index,
+        }, .{
+            .pos = pos + math.v2RotatedBy(math.rBottomRight(anchored_at_zero), rotation),
+            .col = col,
+            .uv = math.rTopRight(uv_rect),
+            .sampler_index = sampler_index,
+        }, .{
+            .pos = pos + math.v2RotatedBy(math.rTopRight(anchored_at_zero), rotation),
+            .col = col,
+            .uv = math.rBottomRight(uv_rect),
+            .sampler_index = sampler_index,
+        }, .{
+            .pos = pos + math.v2RotatedBy(math.rTopLeft(anchored_at_zero), rotation),
+            .col = col,
+            .uv = math.rBottomLeft(uv_rect),
+            .sampler_index = sampler_index,
+        });
+
+    }
+
 };

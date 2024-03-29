@@ -314,9 +314,9 @@ pub const Font = struct {
             const codepoint = string[i];
             const glyph = self.getGlyph(codepoint) orelse return error.GlyphNotFound;
             width += glyph.advance;
-            if (i <= string.len) {
+            if (i + 1 < string.len) {
                 const next_codepoint = string[i+1];
-                width += glyph.kerningTo(next_codepoint);
+                width += try glyph.kerningTo(next_codepoint);
             }
         }
         return width;

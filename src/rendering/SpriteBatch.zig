@@ -19,7 +19,7 @@ pub const SpriteBatch = struct {
     };
 
     quad_capacity: usize = 0,
-    quads_to_flush: usize = 0,
+    quads_to_draw: usize = 0,
     
     vao: gl.GLuint = undefined,
     vbo: gl.GLuint = undefined,
@@ -33,7 +33,7 @@ pub const SpriteBatch = struct {
     uniform_locations: [@typeInfo(Uniforms).Struct.fields.len]gl.GLint = undefined,
 
     texture_ids: [32]gl.GLuint = undefined,
-    textures_to_flush: usize = 0,
+    textures_to_draw: usize = 0,
     max_texture_units: usize = 0,
 
     white_pixel_texture: Texture = undefined,
@@ -206,7 +206,7 @@ pub const SpriteBatch = struct {
         gl.glDeleteVertexArrays(1, &self.vao);
     }
 
-    pub fn flush(self: *@This()) void {
+    pub fn draw(self: *@This()) void {
 
         gl.glEnable(gl.GL_BLEND);
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA);
@@ -216,7 +216,7 @@ pub const SpriteBatch = struct {
 
         gl.glUseProgram(self.shader_program);
 
-        for (0..self.textures_to_flush) | i | {
+        for (0..self.textures_to_draw) | i | {
             gl.glActiveTexture(@intCast(gl.GL_TEXTURE0 + i));
             gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_ids[i]);
         }
@@ -226,7 +226,7 @@ pub const SpriteBatch = struct {
             switch (uniform.type) {
 
                 @Vector(16, f32) => gl.glUniformMatrix4fv(self.uniform_locations[i], 1, gl.GL_FALSE, @ptrCast(&@field(self.uniforms, uniform.name))),
-                [32]gl.GLint => gl.glUniform1iv(self.uniform_locations[i], @intCast(self.textures_to_flush), &@field(self.uniforms, uniform.name)),
+                [32]gl.GLint => gl.glUniform1iv(self.uniform_locations[i], @intCast(self.textures_to_draw), &@field(self.uniforms, uniform.name)),
 
                 else => @compileError("unknow uniform type " ++ @typeName(uniform.field_type)),
 
@@ -237,11 +237,11 @@ pub const SpriteBatch = struct {
         gl.glBindVertexArray(self.vao);
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo);
         gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self.ibo);
-        gl.glBufferData(gl.GL_ARRAY_BUFFER, @intCast(self.quads_to_flush * 4 * @sizeOf(Vertex)), self.vertex_buffer.ptr, gl.GL_DYNAMIC_DRAW);
-        gl.glDrawElements(gl.GL_TRIANGLES, @intCast(self.quads_to_flush * 6), gl.GL_UNSIGNED_INT, null);
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, @intCast(self.quads_to_draw * 4 * @sizeOf(Vertex)), self.vertex_buffer.ptr, gl.GL_DYNAMIC_DRAW);
+        gl.glDrawElements(gl.GL_TRIANGLES, @intCast(self.quads_to_draw * 6), gl.GL_UNSIGNED_INT, null);
 
-        self.quads_to_flush = 0;
-        self.textures_to_flush = 0;
+        self.quads_to_draw = 0;
+        self.textures_to_draw = 0;
 
     }
 
@@ -249,7 +249,7 @@ pub const SpriteBatch = struct {
 
         const existing_texture_id_index: ?usize = blk: {
 
-            for (self.texture_ids[0..self.textures_to_flush], 0..) | existing_texture_id, index | {
+            for (self.texture_ids[0..self.textures_to_draw], 0..) | existing_texture_id, index | {
                 if (texture.id == existing_texture_id) {
                     break :blk index;
                 }
@@ -263,29 +263,29 @@ pub const SpriteBatch = struct {
             return x;
         }
 
-        if (self.textures_to_flush + 1 > self.max_texture_units) {
+        if (self.textures_to_draw + 1 > self.max_texture_units) {
             return error.TextureUnitsUsed;
         }
 
-        const new_texture_id_index = self.textures_to_flush;
+        const new_texture_id_index = self.textures_to_draw;
         self.texture_ids[new_texture_id_index] = texture.id;
-        self.textures_to_flush += 1;
+        self.textures_to_draw += 1;
         return new_texture_id_index;
 
     }
 
     pub fn putQuadVertices(self: *@This(), bl: Vertex, br: Vertex, tr: Vertex, tl: Vertex) !void {
 
-        if (self.quads_to_flush + 1 > self.quad_capacity) {
+        if (self.quads_to_draw + 1 > self.quad_capacity) {
             return error.VertexBufferFull;
         }
 
-        self.vertex_buffer[self.quads_to_flush * 4 + 0] = bl;
-        self.vertex_buffer[self.quads_to_flush * 4 + 1] = br;
-        self.vertex_buffer[self.quads_to_flush * 4 + 2] = tr;
-        self.vertex_buffer[self.quads_to_flush * 4 + 3] = tl;
+        self.vertex_buffer[self.quads_to_draw * 4 + 0] = bl;
+        self.vertex_buffer[self.quads_to_draw * 4 + 1] = br;
+        self.vertex_buffer[self.quads_to_draw * 4 + 2] = tr;
+        self.vertex_buffer[self.quads_to_draw * 4 + 3] = tl;
 
-        self.quads_to_flush += 1;
+        self.quads_to_draw += 1;
 
     }
 

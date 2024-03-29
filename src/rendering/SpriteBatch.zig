@@ -3,6 +3,8 @@ const gl        = @import("glad");
 const math      = @import("math");
 const Texture   = @import("Texture.zig").Texture;
 const Image     = @import("Image.zig").Image;
+const utf       = @import("../utf.zig");
+const Font      = @import("Font.zig").Font;
 
 pub const SpriteBatch = struct {
 
@@ -289,36 +291,40 @@ pub const SpriteBatch = struct {
 
     }
 
-    pub fn putTexturedRect(self: *@This(), rect: @Vector(4, f32), texture: Texture, col: @Vector(4, f32)) !void {
+    pub fn putSubtextureRect(self: *@This(), texture: Texture, uv_rect: @Vector(4, f32), rect: @Vector(4, f32), col: @Vector(4, f32)) !void {
 
         const sampler_index: gl.GLfloat = @floatFromInt(try self.putTextureGetIndex(texture));
 
         try self.putQuadVertices(.{
             .pos = math.rBottomLeft(rect),
             .col = col,
-            .uv = .{ 0.0, 1.0 },
+            .uv = math.rTopLeft(uv_rect),
             .sampler_index = sampler_index,
         }, .{
             .pos = math.rBottomRight(rect),
             .col = col,
-            .uv = .{ 1.0, 1.0 },
+            .uv = math.rTopRight(uv_rect),
             .sampler_index = sampler_index,
         }, .{
             .pos = math.rTopRight(rect),
             .col = col,
-            .uv = .{ 1.0, 0.0 },
+            .uv = math.rBottomRight(uv_rect),
             .sampler_index = sampler_index,
         }, .{
             .pos = math.rTopLeft(rect),
             .col = col,
-            .uv = .{ 0.0, 0.0 },
+            .uv = math.rBottomLeft(uv_rect),
             .sampler_index = sampler_index,
         });
 
     }
 
+    pub fn putTexturedRect(self: *@This(), texture: Texture, rect: @Vector(4, f32), col: @Vector(4, f32)) !void {
+        try self.putSubtextureRect(texture, math.rUnit(f32), rect, col);
+    }
+
     pub fn putColoredRect(self: *@This(), rect: @Vector(4, f32), col: @Vector(4, f32)) !void {
-        try self.putTexturedRect(rect, self.white_pixel_texture, col);
+        try self.putTexturedRect(self.white_pixel_texture, rect, col);
     }
 
     pub fn putTexturedLine(self: *@This(), texture: Texture, start: @Vector(2, f32), end: @Vector(2, f32), width: f32, col: @Vector(4, f32)) !void {
@@ -406,6 +412,50 @@ pub const SpriteBatch = struct {
             .uv = math.rBottomLeft(uv_rect),
             .sampler_index = sampler_index,
         });
+
+    }
+
+    pub fn putFontString(self: *@This(), font: Font, string: []const utf.Codepoint, pos: @Vector(2, f32), line_height: f32, anchor: @Vector(2, f32), col: @Vector(4, f32)) !void {
+
+        const texture = font.atlas_texture orelse return error.MissingFontAtlasTexture;
+
+        const scale = font.scaleForLineHeight(line_height);
+        const string_size = @Vector(2, f32) {
+            try font.stringWidth(string) * scale,
+            font.ascent,
+        };
+
+        var pos_cursor = pos - (string_size * anchor);
+
+        for (string, 0..) | _, i | {
+
+            const codepoint = string[i];
+            const glyph = font.getGlyph(codepoint) orelse return error.FontMissingStringGlyph;
+
+            const kerning = blk: {
+                if (i + 1 < string.len) {
+                    const next_codepoint = string[i + 1];
+                    const unscaled = try glyph.kerningTo(next_codepoint);
+                    break :blk unscaled * scale;
+                } else break :blk @as(f32, 0);
+            };
+
+            const bearing  = glyph.bearing  * scale;
+            const advance  = glyph.advance  * scale;
+            const y_offset = glyph.y_offset * scale;
+
+            const target_rect = @Vector(4, f32) {
+                pos_cursor[0] + bearing,
+                pos_cursor[1] + y_offset,
+                @as(f32, @floatFromInt(glyph.pixel_rect[2])) * scale,
+                @as(f32, @floatFromInt(glyph.pixel_rect[3])) * scale,
+            };
+
+            pos_cursor[0] += advance + kerning;
+
+            try self.putSubtextureRect(texture, glyph.uv_rect, target_rect, col);
+
+        }
 
     }
 

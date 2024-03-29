@@ -289,4 +289,37 @@ pub const Font = struct {
         self.atlas_image = null;
     }
 
+    pub fn freeTexture(self: *@This()) void {
+        if (self.atlas_texture) | texture | {
+            texture.free();
+        }
+        self.atlas_texture = null;
+    }
+
+    pub fn getGlyph(self: *const @This(), codepoint: utf.Codepoint) ?*const Glyph {
+        for (self.glyphs) | *glyph | {
+            if (glyph.codepoint == codepoint) {
+                return glyph;
+            }
+        } else return null;
+    }
+
+    pub fn scaleForLineHeight(self: *const @This(), line_height: f32) f32 {
+        return line_height / self.line_height;
+    }
+
+    pub fn stringWidth(self: *const @This(), string: []const utf.Codepoint) !f32 {
+        var width: f32 = 0;
+        for (string, 0..) | _, i | {
+            const codepoint = string[i];
+            const glyph = self.getGlyph(codepoint) orelse return error.GlyphNotFound;
+            width += glyph.advance;
+            if (i <= string.len) {
+                const next_codepoint = string[i+1];
+                width += glyph.kerningTo(next_codepoint);
+            }
+        }
+        return width;
+    }
+
 };

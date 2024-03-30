@@ -9,7 +9,7 @@ const Font      = @import("Font.zig").Font;
 pub const SpriteBatch = struct {
 
     pub const Vertex = struct {
-        pos: @Vector(2, gl.GLfloat),
+        pos: @Vector(3, gl.GLfloat),
         col: @Vector(4, gl.GLfloat),
         uv:  @Vector(2, gl.GLfloat),
         sampler_index: gl.GLfloat,
@@ -171,6 +171,10 @@ pub const SpriteBatch = struct {
                     location, 2, gl.GL_FLOAT, gl.GL_FALSE, @intCast(@sizeOf(Vertex)), @ptrFromInt(@offsetOf(Vertex, vert_attrib.name))
                 ),
 
+                @Vector(3, gl.GLfloat) => gl.glVertexAttribPointer(
+                    location, 3, gl.GL_FLOAT, gl.GL_FALSE, @intCast(@sizeOf(Vertex)), @ptrFromInt(@offsetOf(Vertex, vert_attrib.name))
+                ),
+
                 @Vector(4, gl.GLfloat) => gl.glVertexAttribPointer(
                     location, 4, gl.GL_FLOAT, gl.GL_FALSE, @intCast(@sizeOf(Vertex)), @ptrFromInt(@offsetOf(Vertex, vert_attrib.name))
                 ),
@@ -179,7 +183,7 @@ pub const SpriteBatch = struct {
                     location, 1, gl.GL_FLOAT, gl.GL_FALSE, @intCast(@sizeOf(Vertex)), @ptrFromInt(@offsetOf(Vertex, vert_attrib.name))
                 ),
 
-                else => @compileError("SpriteBatch: unknown vertex attribute type " ++ @typeName(vert_attrib.field_type)),
+                else => @compileError("SpriteBatch: unknown vertex attribute type " ++ @typeName(vert_attrib.type)),
 
             }
 
@@ -210,8 +214,13 @@ pub const SpriteBatch = struct {
 
     pub fn draw(self: *@This()) void {
 
+        gl.glEnable(gl.GL_DEPTH_CLAMP);
+
         gl.glEnable(gl.GL_BLEND);
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA);
+
+        gl.glEnable(gl.GL_DEPTH_TEST);
+        gl.glDepthFunc(gl.GL_LEQUAL);
 
         gl.glEnable(gl.GL_CULL_FACE);
         gl.glCullFace(gl.GL_BACK);
@@ -291,27 +300,27 @@ pub const SpriteBatch = struct {
 
     }
 
-    pub fn putRectSubtexture(self: *@This(), texture: Texture, uv_rect: @Vector(4, f32), rect: @Vector(4, f32), col: @Vector(4, f32)) !void {
+    pub fn putRectSubtexture(self: *@This(), texture: Texture, uv_rect: @Vector(4, f32), rect: @Vector(4, f32), z: f32, col: @Vector(4, f32)) !void {
 
         const sampler_index: gl.GLfloat = @floatFromInt(try self.putTextureUnitGetIndex(texture));
 
         try self.putQuadVertices(.{
-            .pos = math.rBottomLeft(rect),
+            .pos = math.v3Fromv2(math.rBottomLeft(rect), z),
             .col = col,
             .uv = math.rTopLeft(uv_rect),
             .sampler_index = sampler_index,
         }, .{
-            .pos = math.rBottomRight(rect),
+            .pos = math.v3Fromv2(math.rBottomRight(rect), z),
             .col = col,
             .uv = math.rTopRight(uv_rect),
             .sampler_index = sampler_index,
         }, .{
-            .pos = math.rTopRight(rect),
+            .pos = math.v3Fromv2(math.rTopRight(rect), z),
             .col = col,
             .uv = math.rBottomRight(uv_rect),
             .sampler_index = sampler_index,
         }, .{
-            .pos = math.rTopLeft(rect),
+            .pos = math.v3Fromv2(math.rTopLeft(rect), z),
             .col = col,
             .uv = math.rBottomLeft(uv_rect),
             .sampler_index = sampler_index,
@@ -319,15 +328,15 @@ pub const SpriteBatch = struct {
 
     }
 
-    pub fn putRectTexture(self: *@This(), texture: Texture, rect: @Vector(4, f32), col: @Vector(4, f32)) !void {
-        try self.putRectSubtexture(texture, math.rUnit(f32), rect, col);
+    pub fn putRectTexture(self: *@This(), texture: Texture, rect: @Vector(4, f32), z: f32, col: @Vector(4, f32)) !void {
+        try self.putRectSubtexture(texture, math.rUnit(f32), rect, z, col);
     }
 
-    pub fn putRectColor(self: *@This(), rect: @Vector(4, f32), col: @Vector(4, f32)) !void {
-        try self.putRectTexture(self.white_pixel_texture, rect, col);
+    pub fn putRectColor(self: *@This(), rect: @Vector(4, f32), z: f32, col: @Vector(4, f32)) !void {
+        try self.putRectTexture(self.white_pixel_texture, rect, z, col);
     }
 
-    pub fn putLineTexture(self: *@This(), texture: Texture, start: @Vector(2, f32), end: @Vector(2, f32), width: f32, col: @Vector(4, f32)) !void {
+    pub fn putLineTexture(self: *@This(), texture: Texture, start: @Vector(2, f32), end: @Vector(2, f32), z: f32, width: f32, col: @Vector(4, f32)) !void {
 
         const direction = math.vNormalized(end - start);
         const offset = math.v2RotatedBy(direction, math.pi / 2.0) * @as(@Vector(2, f32), @splat(width / 2.0));
@@ -335,22 +344,22 @@ pub const SpriteBatch = struct {
         const sampler_index: gl.GLfloat = @floatFromInt(try self.putTextureUnitGetIndex(texture));
 
         try self.putQuadVertices(.{
-            .pos = start - offset,
+            .pos = math.v3Fromv2(start - offset, z),
             .col = col,
             .uv = .{ 0.0, 1.0 },
             .sampler_index = sampler_index,
         }, .{
-            .pos = end - offset,
+            .pos = math.v3Fromv2(end - offset, z),
             .col = col,
             .uv = .{ 1.0, 1.0 },
             .sampler_index = sampler_index,
         }, .{
-            .pos = end + offset,
+            .pos = math.v3Fromv2(end + offset, z),
             .col = col,
             .uv = .{ 1.0, 0.0 },
             .sampler_index = sampler_index,
         }, .{
-            .pos = start + offset,
+            .pos = math.v3Fromv2(start + offset, z),
             .col = col,
             .uv = .{ 0.0, 0.0 },
             .sampler_index = sampler_index,
@@ -358,11 +367,11 @@ pub const SpriteBatch = struct {
 
     }
 
-    pub fn putLineColor(self: *@This(), start: @Vector(2, f32), end: @Vector(2, f32), width: f32, col: @Vector(4, f32)) !void {
-        try self.putLineTexture(self.white_pixel_texture, start, end, width, col);
+    pub fn putLineColor(self: *@This(), start: @Vector(2, f32), end: @Vector(2, f32), z: f32, width: f32, col: @Vector(4, f32)) !void {
+        try self.putLineTexture(self.white_pixel_texture, start, end, z, width, col);
     }
 
-    pub fn putLineRectColor(self: *@This(), rect: @Vector(4, f32), line_width: f32, col: @Vector(4, f32)) !void {
+    pub fn putLineRectColor(self: *@This(), rect: @Vector(4, f32), z: f32, line_width: f32, col: @Vector(4, f32)) !void {
 
         const bottom_left   = math.rBottomLeft(rect);
         const bottom_right  = math.rBottomRight(rect);
@@ -371,14 +380,14 @@ pub const SpriteBatch = struct {
 
         const offset = line_width / 2.0;
 
-        try self.putLineColor(bottom_left  + @Vector(2, f32) { offset, 0 }, bottom_right + @Vector(2, f32) { offset, 0 }, line_width, col);
-        try self.putLineColor(bottom_right + @Vector(2, f32) { 0, offset }, top_right    + @Vector(2, f32) { 0, offset }, line_width, col);
-        try self.putLineColor(top_right    - @Vector(2, f32) { offset, 0 }, top_left     - @Vector(2, f32) { offset, 0 }, line_width, col);
-        try self.putLineColor(top_left     - @Vector(2, f32) { 0, offset }, bottom_left  - @Vector(2, f32) { 0, offset }, line_width, col);
+        try self.putLineColor(bottom_left  + @Vector(2, f32) { offset, 0 }, bottom_right + @Vector(2, f32) { offset, 0 }, z, line_width, col);
+        try self.putLineColor(bottom_right + @Vector(2, f32) { 0, offset }, top_right    + @Vector(2, f32) { 0, offset }, z, line_width, col);
+        try self.putLineColor(top_right    - @Vector(2, f32) { offset, 0 }, top_left     - @Vector(2, f32) { offset, 0 }, z, line_width, col);
+        try self.putLineColor(top_left     - @Vector(2, f32) { 0, offset }, bottom_left  - @Vector(2, f32) { 0, offset }, z, line_width, col);
 
     }
 
-    pub fn putSpriteSubtexture(self: *@This(), texture: Texture, uv_rect: @Vector(4, f32), pos: @Vector(2, f32),
+    pub fn putSpriteSubtexture(self: *@This(), texture: Texture, uv_rect: @Vector(4, f32), pos: @Vector(2, f32), z: f32,
         scale: @Vector(2, f32), anchor: @Vector(2, f32), rotation: f32, col: @Vector(4, f32)) !void {
 
         const sampler_index: f32 = @floatFromInt(try self.putTextureUnitGetIndex(texture));
@@ -392,22 +401,22 @@ pub const SpriteBatch = struct {
         };
 
         try self.putQuadVertices(.{
-            .pos = pos + math.v2RotatedBy(math.rBottomLeft(anchored_at_zero), rotation),
+            .pos = math.v3Fromv2(pos + math.v2RotatedBy(math.rBottomLeft(anchored_at_zero), rotation), z),
             .col = col,
             .uv = math.rTopLeft(uv_rect),
             .sampler_index = sampler_index,
         }, .{
-            .pos = pos + math.v2RotatedBy(math.rBottomRight(anchored_at_zero), rotation),
+            .pos = math.v3Fromv2(pos + math.v2RotatedBy(math.rBottomRight(anchored_at_zero), rotation), z),
             .col = col,
             .uv = math.rTopRight(uv_rect),
             .sampler_index = sampler_index,
         }, .{
-            .pos = pos + math.v2RotatedBy(math.rTopRight(anchored_at_zero), rotation),
+            .pos = math.v3Fromv2(pos + math.v2RotatedBy(math.rTopRight(anchored_at_zero), rotation), z),
             .col = col,
             .uv = math.rBottomRight(uv_rect),
             .sampler_index = sampler_index,
         }, .{
-            .pos = pos + math.v2RotatedBy(math.rTopLeft(anchored_at_zero), rotation),
+            .pos = math.v3Fromv2(pos + math.v2RotatedBy(math.rTopLeft(anchored_at_zero), rotation), z),
             .col = col,
             .uv = math.rBottomLeft(uv_rect),
             .sampler_index = sampler_index,
@@ -415,12 +424,12 @@ pub const SpriteBatch = struct {
 
     }
 
-    pub fn putSpriteTexture(self: *@This(), texture: Texture, pos: @Vector(2, f32),
+    pub fn putSpriteTexture(self: *@This(), texture: Texture, pos: @Vector(2, f32), z: f32,
         scale: @Vector(2, f32), anchor: @Vector(2, f32), rotation: f32, col: @Vector(4, f32)) !void {
-        try self.putSpriteSubtexture(texture, math.rUnit(f32), pos, scale, anchor, rotation, col);
+        try self.putSpriteSubtexture(texture, math.rUnit(f32), pos, z, scale, anchor, rotation, col);
     }
 
-    pub fn putFontString(self: *@This(), font: Font, string: []const utf.Codepoint, pos: @Vector(2, f32), line_height: f32, anchor: @Vector(2, f32), col: @Vector(4, f32)) !void {
+    pub fn putFontString(self: *@This(), font: Font, string: []const utf.Codepoint, pos: @Vector(2, f32), z: f32, line_height: f32, anchor: @Vector(2, f32), col: @Vector(4, f32)) !void {
 
         const texture = font.atlas_texture orelse return error.MissingFontAtlasTexture;
 
@@ -458,7 +467,7 @@ pub const SpriteBatch = struct {
 
             pos_cursor[0] += advance + kerning;
 
-            try self.putRectSubtexture(texture, glyph.uv_rect, target_rect, col);
+            try self.putRectSubtexture(texture, glyph.uv_rect, target_rect, z, col);
 
         }
 

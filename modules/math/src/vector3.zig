@@ -18,3 +18,10 @@ test "math.vector.v3Cross" {
 }
 
 // --------------------------------
+
+pub inline fn v3Fromv2(v: anytype, z: @typeInfo(@TypeOf(v)).Vector.child) @Vector(3, @typeInfo(@TypeOf(v)).Vector.child) {
+    if (@typeInfo(@TypeOf(v)).Vector.len != 2) {
+        @compileError("v3Fromv2 expects @Vector(2, T) as an argument");
+    }
+    return .{ v[0], v[1], z };
+}

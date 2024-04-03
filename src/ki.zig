@@ -9,6 +9,8 @@ pub const c = struct {
 
 };
 
+pub const DynArr = @import("DynArr.zig").DynArr;
+
 pub const math  = @import("math");
 
 pub const Time = @import("time/Time.zig").Time;

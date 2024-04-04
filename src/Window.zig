@@ -78,6 +78,7 @@ pub const Window = struct {
         _ = glfw.glfwSetCharCallback(handle, __onChar);
         _ = glfw.glfwSetCursorPosCallback(handle, __onCursorMove);
         _ = glfw.glfwSetMouseButtonCallback(handle, __onCursorButton);
+        _ = glfw.glfwSetScrollCallback(handle, __onScroll);
 
     }
 
@@ -121,6 +122,7 @@ pub const Event = union(enum) {
         button: CursorButton,
         down: bool,
     },
+    scroll:         @Vector(2, f32),
 };
 
 pub const Key = enum(@TypeOf(glfw.GLFW_KEY_UNKNOWN)) {
@@ -331,5 +333,17 @@ fn __onCursorButton(handle: ?*glfw.GLFWwindow, glfw_button: c_int, action: c_int
             .down = down,
         }
     }) catch | e | { log.print(.Error, "could not push to window's event queue on cursor button event: {s}\n", .{@errorName(e)}); };
+
+}
+
+fn __onScroll(handle: ?*glfw.GLFWwindow, x: f64, y: f64) callconv(.C) void {
+
+    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+
+    const scroll: @Vector(2, f32) = .{ @floatCast(x), @floatCast(y) };
+
+    window.event_queue.pushBack(.{
+        .scroll = scroll,
+    }) catch | e | { log.print(.Error, "could not push to window's event queue on scroll event: {s}\n", .{@errorName(e)}); };
 
 }

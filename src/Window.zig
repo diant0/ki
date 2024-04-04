@@ -77,6 +77,7 @@ pub const Window = struct {
         _ = glfw.glfwSetKeyCallback(handle, __onKeyboard);
         _ = glfw.glfwSetCharCallback(handle, __onChar);
         _ = glfw.glfwSetCursorPosCallback(handle, __onCursorMove);
+        _ = glfw.glfwSetMouseButtonCallback(handle, __onCursorButton);
 
     }
 
@@ -109,15 +110,17 @@ pub const Window = struct {
 
 pub const Event = union(enum) {
     resize:         @Vector(2, u32),
-    key:            KeyEvent,
+    key:            struct {
+        key: Key,
+        down: bool,
+        repeat: bool,
+    },
     char:           utf.Codepoint,
     cursor_move:    @Vector(2, f32),
-};
-
-pub const KeyEvent = struct {
-    key: Key,
-    down: bool,
-    repeat: bool,
+    cursor_button: struct {
+        button: CursorButton,
+        down: bool,
+    },
 };
 
 pub const Key = enum(@TypeOf(glfw.GLFW_KEY_UNKNOWN)) {
@@ -244,9 +247,19 @@ pub const Key = enum(@TypeOf(glfw.GLFW_KEY_UNKNOWN)) {
     RightSuper   = glfw.GLFW_KEY_RIGHT_SUPER,
     Menu         = glfw.GLFW_KEY_MENU,
 
-    fn fromGLFWint(int: c_int) @This() {
-        return @enumFromInt(int);
-    }
+};
+
+pub const CursorButton = enum(@TypeOf(glfw.GLFW_MOUSE_BUTTON_LEFT)) {
+
+    Left   = glfw.GLFW_MOUSE_BUTTON_LEFT,
+    Right  = glfw.GLFW_MOUSE_BUTTON_RIGHT,
+    Middle = glfw.GLFW_MOUSE_BUTTON_MIDDLE,
+
+    Button4 = glfw.GLFW_MOUSE_BUTTON_4,
+    Button5 = glfw.GLFW_MOUSE_BUTTON_5,
+    Button6 = glfw.GLFW_MOUSE_BUTTON_6,
+    Button7 = glfw.GLFW_MOUSE_BUTTON_7,
+    Button8 = glfw.GLFW_MOUSE_BUTTON_8,
 
 };
 
@@ -259,7 +272,7 @@ fn __onResize(handle: ?*glfw.GLFWwindow, width: c_int, height: c_int) callconv(.
 
     window.event_queue.pushBack(.{
         .resize = window.size,
-    }) catch |e| { log.print(.Error, "could not push to window's event queue on resize event: {s}\n", .{@errorName(e)}); };
+    }) catch | e | { log.print(.Error, "could not push to window's event queue on resize event: {s}\n", .{@errorName(e)}); };
 
 }
 
@@ -269,14 +282,14 @@ fn __onKeyboard(handle: ?*glfw.GLFWwindow, glfw_key: c_int, _: c_int, action: c_
 
     const repeat = action == glfw.GLFW_REPEAT;
     const down = action == glfw.GLFW_PRESS or repeat;
-    const key = toplevel.Key.fromGLFWint(glfw_key);
+    const key: Key = @enumFromInt(glfw_key);
 
     window.event_queue.pushBack(.{
         .key = .{
             .key = key,
             .down = down,
             .repeat = repeat, 
-    } }) catch |e| { log.print(.Error, "could not push to window's event queue on key event: {s}\n", .{@errorName(e)}); };
+    } }) catch | e | { log.print(.Error, "could not push to window's event queue on key event: {s}\n", .{@errorName(e)}); };
 
 }
 
@@ -288,7 +301,7 @@ fn __onChar(handle: ?*glfw.GLFWwindow, glfw_char: c_uint) callconv(.C) void {
 
     window.event_queue.pushBack(.{
         .char = codepoint,
-    }) catch |e| { log.print(.Error, "could not push to window's event queue on char event: {s}\n", .{@errorName(e)}); };
+    }) catch | e | { log.print(.Error, "could not push to window's event queue on char event: {s}\n", .{@errorName(e)}); };
 
 }
 
@@ -301,6 +314,22 @@ fn __onCursorMove(handle: ?*glfw.GLFWwindow, x: f64, y: f64) callconv(.C) void {
 
     window.event_queue.pushBack(.{
         .cursor_move = window.cursor_pos,
-    }) catch |e| { log.print(.Error, "could not push to window's event queue on cursor move event: {s}\n", .{@errorName(e)}); };
+    }) catch | e | { log.print(.Error, "could not push to window's event queue on cursor move event: {s}\n", .{@errorName(e)}); };
+
+}
+
+fn __onCursorButton(handle: ?*glfw.GLFWwindow, glfw_button: c_int, action: c_int, _: c_int) callconv(.C) void {
+
+    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+
+    const button: CursorButton = @enumFromInt(glfw_button);
+    const down = action == glfw.GLFW_PRESS;
+
+    window.event_queue.pushBack(.{
+        .cursor_button = .{
+            .button = button,
+            .down = down,
+        }
+    }) catch | e | { log.print(.Error, "could not push to window's event queue on cursor button event: {s}\n", .{@errorName(e)}); };
 
 }

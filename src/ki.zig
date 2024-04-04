@@ -6,6 +6,7 @@ pub const c = struct {
     pub const stb   = @import("stb");
     pub const qoi   = @import("qoi");
     pub const glad  = @import("glad");
+    pub const miniaudio = @import("miniaudio");
 
 };
 

@@ -17,6 +17,9 @@
         .qoi = .{
             .path = "modules/qoi"
         },
+        .miniaudio = .{
+            .path = "modules/miniaudio"
+        },
     },
     .paths = .{
         "src",

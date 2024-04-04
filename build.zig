@@ -69,11 +69,20 @@ pub fn build(b: *std.Build) !void {
     // --------------------------------
 
     const qoi = b.dependency("qoi", .{
-        .target         = target,
-        .optimize       = optimize,
+        .target     = target,
+        .optimize   = optimize,
     });
     module.addImport("qoi", qoi.module("qoi"));
     lib.linkLibrary(qoi.artifact("qoi"));
+
+    // --------------------------------
+
+    const miniaudio = b.dependency("miniaudio", .{
+        .target     = target,
+        .optimize   = optimize,
+    });
+    module.addImport("miniaudio", miniaudio.module("miniaudio"));
+    lib.linkLibrary(miniaudio.artifact("miniaudio"));
 
     // --------------------------------
 

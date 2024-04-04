@@ -43,16 +43,18 @@ pub fn build(b: *std.Build) !void {
     lib.linkLibC();
     lib.addIncludePath(.{ .path = repo_path });
 
+    const cache_subpath = "stb";
+
     if (build_stb_image) {
-        try addGeneratedStbImpl(lib, "stb_image.h", "STB_IMAGE_IMPLEMENTATION");
+        try addGeneratedImpl(lib, cache_subpath, "stb_image.c", "stb_image.h", "STB_IMAGE_IMPLEMENTATION");
     }
 
     if (build_stb_image_write) {
-        try addGeneratedStbImpl(lib, "stb_image_write.h", "STB_IMAGE_WRITE_IMPLEMENTATION");
+        try addGeneratedImpl(lib, cache_subpath, "stb_image_write.c", "stb_image_write.h", "STB_IMAGE_WRITE_IMPLEMENTATION");
     }
 
     if (build_stb_truetype) {
-        try addGeneratedStbImpl(lib, "stb_truetype.h", "STB_TRUETYPE_IMPLEMENTATION");
+        try addGeneratedImpl(lib, cache_subpath, "stb_truetype.c", "stb_truetype.h", "STB_TRUETYPE_IMPLEMENTATION");
     }
 
     b.installArtifact(lib);
@@ -62,45 +64,34 @@ pub fn build(b: *std.Build) !void {
 }
 
 const repo_path = "stb";
-const generated_impls_subpath = "stb";
 
-fn addGeneratedStbImpl(compile: *std.Build.Step.Compile, header: []const u8, impl_define: []const u8) !void {
-    
+fn addGeneratedImpl(compile: *std.Build.Step.Compile, cache_subpath: []const u8, impl_filename: []const u8, header: []const u8, impl_define: []const u8) !void {
+
     const b = compile.step.owner;
 
     const cache_dir = b.cache_root.handle;
 
-    var stb_impls_dir = try cache_dir.makeOpenPath(generated_impls_subpath, .{});
-    defer stb_impls_dir.close();
-
-    const stb_lib_name = try blk: {
-        const last_dot_index = std.mem.lastIndexOf(u8, header, ".");
-        if (last_dot_index) | extension_dot_index | {
-            break :blk header[0..extension_dot_index];
-        } else break :blk error.UndexpectedStbHeaderFilename;
-    };
+    var impls_dir = try cache_dir.makeOpenPath(cache_subpath, .{});
+    defer impls_dir.close();
     
-    var stb_impl_filename_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    const stb_impl_filename = try std.fmt.bufPrint(&stb_impl_filename_buf, "{s}.c", .{ stb_lib_name });
-
-    const stb_impl_file = stb_impls_dir.openFile(stb_impl_filename, .{}) catch | e | blk: {
+    const impl_file = impls_dir.openFile(impl_filename, .{}) catch | e | blk: {
     
         if (e == error.FileNotFound) {
 
-            const new_impl_file = try stb_impls_dir.createFile(stb_impl_filename, .{});
+            const new_impl_file = try impls_dir.createFile(impl_filename, .{});
             try new_impl_file.writer().print("#define {s}\n#include \"{s}\"\n", .{ impl_define, header });
             break :blk new_impl_file;
 
         } else return e;
     
     };
-    stb_impl_file.close();
+    impl_file.close();
 
-    const stb_impl_file_abspath = try stb_impls_dir.realpathAlloc(b.allocator, stb_impl_filename);
-    defer b.allocator.free(stb_impl_file_abspath);
+    const impl_file_abspath = try impls_dir.realpathAlloc(b.allocator, impl_filename);
+    defer b.allocator.free(impl_file_abspath);
 
     compile.addCSourceFile(.{
-        .file = .{ .path = stb_impl_file_abspath },
+        .file = .{ .path = impl_file_abspath },
         .flags = &[_][]const u8 {},
     });
 

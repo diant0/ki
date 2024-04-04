@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) !void {
     lib.linkLibC();
     lib.addIncludePath(.{ .path = "glad" });
 
-    try addGeneratedGLADImpl(lib, "glad.h", "GLAD_GL_IMPLEMENTATION");
+    try addGeneratedImpl(lib, "glad", "glad.c", "glad.h", "GLAD_GL_IMPLEMENTATION");
 
     b.installArtifact(lib);
 
@@ -34,34 +34,33 @@ pub fn build(b: *std.Build) !void {
 
 }
 
-fn addGeneratedGLADImpl(compile: *std.Build.Step.Compile, header: []const u8, impl_define: []const u8) !void {
+fn addGeneratedImpl(compile: *std.Build.Step.Compile, cache_subpath: []const u8, impl_filename: []const u8, header: []const u8, impl_define: []const u8) !void {
 
     const b = compile.step.owner;
 
     const cache_dir = b.cache_root.handle;
 
-    var qoi_impls_dir = try cache_dir.makeOpenPath("glad", .{});
-    defer qoi_impls_dir.close();
+    var impls_dir = try cache_dir.makeOpenPath(cache_subpath, .{});
+    defer impls_dir.close();
     
-    const qoi_impl_filename = "glad.c";
-    const qoi_impl_file = qoi_impls_dir.openFile(qoi_impl_filename, .{}) catch | e | blk: {
+    const impl_file = impls_dir.openFile(impl_filename, .{}) catch | e | blk: {
     
         if (e == error.FileNotFound) {
 
-            const new_impl_file = try qoi_impls_dir.createFile(qoi_impl_filename, .{});
+            const new_impl_file = try impls_dir.createFile(impl_filename, .{});
             try new_impl_file.writer().print("#define {s}\n#include \"{s}\"\n", .{ impl_define, header });
             break :blk new_impl_file;
 
         } else return e;
     
     };
-    qoi_impl_file.close();
+    impl_file.close();
 
-    const qoi_impl_file_abspath = try qoi_impls_dir.realpathAlloc(b.allocator, qoi_impl_filename);
-    defer b.allocator.free(qoi_impl_file_abspath);
+    const impl_file_abspath = try impls_dir.realpathAlloc(b.allocator, impl_filename);
+    defer b.allocator.free(impl_file_abspath);
 
     compile.addCSourceFile(.{
-        .file = .{ .path = qoi_impl_file_abspath },
+        .file = .{ .path = impl_file_abspath },
         .flags = &[_][]const u8 {},
     });
 

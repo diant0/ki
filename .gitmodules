@@ -7,3 +7,6 @@
 [submodule "modules/qoi/qoi"]
 	path = modules/qoi/qoi
 	url = https://github.com/diant0/qoi
+[submodule "modules/miniaudio/miniaudio"]
+	path = modules/miniaudio/miniaudio
+	url = https://github.com/diant0/miniaudio

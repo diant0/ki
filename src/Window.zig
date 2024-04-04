@@ -2,6 +2,7 @@ const std = @import("std");
 const glfw = @import("glfw");
 const log = @import("log.zig");
 const DynArr = @import("DynArr.zig").DynArr;
+const utf = @import("utf.zig");
 
 const toplevel = @This();
 
@@ -10,14 +11,14 @@ pub const Window = struct {
     pub const context = struct {
 
         pub fn init() !void {
-            
+
             const version: @Vector(3, c_int) = blk: {
                 var x: @Vector(3, c_int) = undefined;
                 glfw.glfwGetVersion(&x[0], &x[1], &x[2]);
                 break :blk x;
             };
             log.print(.Info, "initializing glfw\n\tversion: {}.{}.{}\n", .{ version[0], version[1], version[2] });
-            
+
             const ret_code = glfw.glfwInit();
             if (ret_code != glfw.GLFW_TRUE) {
                 var glfw_error_description_buffer: [2048]u8 = undefined;
@@ -32,7 +33,7 @@ pub const Window = struct {
         pub fn terminate() void {
             glfw.glfwTerminate();
         }
-        
+
         pub fn pollEvents() void {
             glfw.glfwPollEvents();
         }
@@ -41,20 +42,22 @@ pub const Window = struct {
 
     };
 
-    handle: *glfw.GLFWwindow    = undefined,
-    size: @Vector(2, u32)       = @splat(0),
+    handle: *glfw.GLFWwindow = undefined,
+
+    size:       @Vector(2, u32) = @splat(0),
+    cursor_pos: @Vector(2, f32) = @splat(0),
 
     event_queue: DynArr(Event, .{
         .auto_shrink_capacity = false,
     }) = undefined,
 
     pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator, title: [:0]const u8, size: @Vector(2, u32)) !void {
-        
+
         glfw.glfwWindowHint(glfw.GLFW_OPENGL_FORWARD_COMPAT, glfw.GLFW_TRUE);
         glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MAJOR, 4);
         glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MINOR, 5);
         glfw.glfwWindowHint(glfw.GLFW_OPENGL_PROFILE, glfw.GLFW_OPENGL_CORE_PROFILE);
-        
+
         const handle = glfw.glfwCreateWindow(@intCast(size[0]), @intCast(size[1]), title, null, null)
             orelse return error.GLFWCreateWindowFailed;
 
@@ -63,9 +66,17 @@ pub const Window = struct {
 
         self.event_queue = try @TypeOf(self.event_queue).init(allocator);
 
+        if (glfw.glfwRawMouseMotionSupported() == glfw.GLFW_TRUE) {
+            glfw.glfwSetInputMode(self.handle, glfw.GLFW_RAW_MOUSE_MOTION, glfw.GLFW_TRUE);
+        } else {
+            log.print(.Warning, "raw mouse motion not supported\n", .{});
+        }
+
         _ = glfw.glfwSetWindowUserPointer(handle, self);
         _ = glfw.glfwSetWindowSizeCallback(handle, __onResize);
         _ = glfw.glfwSetKeyCallback(handle, __onKeyboard);
+        _ = glfw.glfwSetCharCallback(handle, __onChar);
+        _ = glfw.glfwSetCursorPosCallback(handle, __onCursorMove);
 
     }
 
@@ -96,48 +107,11 @@ pub const Window = struct {
 
 };
 
-fn __onResize(handle: ?*glfw.GLFWwindow, width: c_int, height: c_int) callconv(.C) void {
-
-    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
-
-    window.size[0] = @intCast(width);
-    window.size[1] = @intCast(height);
-
-    window.event_queue.pushBack(.{
-        .resize = .{
-            .size = window.size
-        }
-    }) catch | e | { log.print(.Error, "could not push to window's event queue: {s}\n", .{ @errorName(e) }); };
-
-}
-
-fn __onKeyboard(handle: ?*glfw.GLFWwindow, glfw_key: c_int, _: c_int, action: c_int, _: c_int) callconv(.C) void {
-
-    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
-
-    const repeat = action == glfw.GLFW_REPEAT;
-    const down = action == glfw.GLFW_PRESS or repeat;
-    const key = toplevel.Key.fromGLFWint(glfw_key);
-
-    window.event_queue.pushBack(.{
-        .key = .{
-            .key = key,
-            .down = down,
-            .repeat = repeat, 
-        }
-    }) catch | e | { log.print(.Error, "could not push to window's event queue: {s}\n", .{ @errorName(e) }); };
-
-}
-
 pub const Event = union(enum) {
-
-    resize: ResizeEvent,
-    key:    KeyEvent,
-
-};
-
-pub const ResizeEvent = struct {
-    size: @Vector(2, u32),
+    resize:         @Vector(2, u32),
+    key:            KeyEvent,
+    char:           utf.Codepoint,
+    cursor_move:    @Vector(2, f32),
 };
 
 pub const KeyEvent = struct {
@@ -275,3 +249,58 @@ pub const Key = enum(@TypeOf(glfw.GLFW_KEY_UNKNOWN)) {
     }
 
 };
+
+fn __onResize(handle: ?*glfw.GLFWwindow, width: c_int, height: c_int) callconv(.C) void {
+
+    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+
+    window.size[0] = @intCast(width);
+    window.size[1] = @intCast(height);
+
+    window.event_queue.pushBack(.{
+        .resize = window.size,
+    }) catch |e| { log.print(.Error, "could not push to window's event queue on resize event: {s}\n", .{@errorName(e)}); };
+
+}
+
+fn __onKeyboard(handle: ?*glfw.GLFWwindow, glfw_key: c_int, _: c_int, action: c_int, _: c_int) callconv(.C) void {
+
+    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+
+    const repeat = action == glfw.GLFW_REPEAT;
+    const down = action == glfw.GLFW_PRESS or repeat;
+    const key = toplevel.Key.fromGLFWint(glfw_key);
+
+    window.event_queue.pushBack(.{
+        .key = .{
+            .key = key,
+            .down = down,
+            .repeat = repeat, 
+    } }) catch |e| { log.print(.Error, "could not push to window's event queue on key event: {s}\n", .{@errorName(e)}); };
+
+}
+
+fn __onChar(handle: ?*glfw.GLFWwindow, glfw_char: c_uint) callconv(.C) void {
+
+    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+
+    const codepoint: utf.Codepoint = @intCast(glfw_char);
+
+    window.event_queue.pushBack(.{
+        .char = codepoint,
+    }) catch |e| { log.print(.Error, "could not push to window's event queue on char event: {s}\n", .{@errorName(e)}); };
+
+}
+
+fn __onCursorMove(handle: ?*glfw.GLFWwindow, x: f64, y: f64) callconv(.C) void {
+
+    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+
+    window.cursor_pos[0] = @floatCast(x);
+    window.cursor_pos[1] = @floatCast(y);
+
+    window.event_queue.pushBack(.{
+        .cursor_move = window.cursor_pos,
+    }) catch |e| { log.print(.Error, "could not push to window's event queue on cursor move event: {s}\n", .{@errorName(e)}); };
+
+}

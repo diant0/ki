@@ -49,7 +49,7 @@ pub const Window = struct {
 
     event_queue: DynArr(Event, .{
         .auto_shrink_capacity = false,
-    }) = undefined,
+    }) = .{},
 
     pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator, title: [:0]const u8, size: @Vector(2, u32)) !void {
 
@@ -64,7 +64,7 @@ pub const Window = struct {
         self.handle   = handle;
         self.size     = size;
 
-        self.event_queue = try @TypeOf(self.event_queue).init(allocator);
+        try self.event_queue.init(allocator);
 
         if (glfw.glfwRawMouseMotionSupported() == glfw.GLFW_TRUE) {
             glfw.glfwSetInputMode(self.handle, glfw.GLFW_RAW_MOUSE_MOTION, glfw.GLFW_TRUE);

@@ -9,20 +9,17 @@ pub fn DynArr(T: type, config: struct {
 
     return struct {
         
-        allocator: std.mem.Allocator,
-        buffer: []T,
+        allocator: std.mem.Allocator = undefined,
+        buffer: []T = &[_]T{},
 
-        first: usize,
-        len: usize,
+        first: usize = 0,
+        len: usize = 0,
 
-        pub fn init(allocator: std.mem.Allocator) !@This() {
+        pub fn init(self: *@This(), allocator: std.mem.Allocator) !void {
 
-            return .{
-                .allocator = allocator,
-                .buffer = try allocator.alloc(T, config.min_capacity),
-                .first = 0,
-                .len = 0,
-            };
+            self.buffer = try allocator.alloc(T, config.min_capacity);
+            self.allocator = allocator;
+            self.clear();
 
         }
 
@@ -189,7 +186,7 @@ pub fn DynArr(T: type, config: struct {
             }
 
             if (index >= self.len) {
-                return error.IndexOutOfRange;
+                return null;
             }
 
             const value = self.buffer[self.first+index];
@@ -208,6 +205,10 @@ pub fn DynArr(T: type, config: struct {
                 );
                 self.first += 1;
                 self.len -= 1;
+            }
+
+            if (config.auto_shrink_capacity) {
+                try self.shrinkCapacityIfNeeded();
             }
 
             return value;

@@ -23,6 +23,8 @@ pub const log   = @import("log.zig");
 pub const Window = @import("Window.zig").Window;
 pub const gl     = c.glad;
 
+pub const Gamepad       = @import("Gamepad.zig").Gamepad;
+
 pub const Image         = @import("rendering/Image.zig").Image;
 pub const Texture       = @import("rendering/Texture.zig").Texture;
 pub const Font          = @import("rendering/Font.zig").Font;

@@ -20,6 +20,8 @@ pub const SpriteBatch = struct {
         samplers: [32]gl.GLint = undefined,
     };
 
+    allocator: std.mem.Allocator = undefined,
+
     quad_capacity: usize = 0,
     quads_to_draw: usize = 0,
     
@@ -41,6 +43,8 @@ pub const SpriteBatch = struct {
     white_pixel_texture: Texture = undefined,
 
     pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator, quad_capacity: usize) !void {
+
+        self.allocator = allocator;
 
         self.vertex_buffer = try allocator.alloc(Vertex, quad_capacity * 4);
         self.quad_capacity = quad_capacity;
@@ -203,8 +207,8 @@ pub const SpriteBatch = struct {
 
     }
 
-    pub fn free(self: *@This(), allocator: std.mem.Allocator) void {
-        allocator.free(self.vertex_buffer);
+    pub fn free(self: *@This()) void {
+        self.allocator.free(self.vertex_buffer);
         self.white_pixel_texture.free();
         gl.glDeleteProgram(self.shader_program);
         gl.glDeleteBuffers(1, &self.vbo);

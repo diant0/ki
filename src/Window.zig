@@ -79,6 +79,8 @@ pub const Window = struct {
         _ = glfw.glfwSetCursorPosCallback(handle, __onCursorMove);
         _ = glfw.glfwSetMouseButtonCallback(handle, __onCursorButton);
         _ = glfw.glfwSetScrollCallback(handle, __onScroll);
+        _ = glfw.glfwSetWindowFocusCallback(handle, __onFocus);
+        _ = glfw.glfwSetWindowCloseCallback(handle, __onTerminationRequest);
 
     }
 
@@ -123,6 +125,8 @@ pub const Event = union(enum) {
         down: bool,
     },
     scroll:         @Vector(2, f32),
+    focus:          bool,
+    termination_request: void,
 };
 
 pub const Key = enum(@TypeOf(glfw.GLFW_KEY_UNKNOWN)) {
@@ -274,7 +278,7 @@ fn __onResize(handle: ?*glfw.GLFWwindow, width: c_int, height: c_int) callconv(.
 
     window.event_queue.pushBack(.{
         .resize = window.size,
-    }) catch | e | { log.print(.Error, "could not push to window's event queue on resize event: {s}\n", .{@errorName(e)}); };
+    }) catch | e | { log.print(.Error, "could not push to window's event queue on resize event: {s}\n", .{ @errorName(e) }); };
 
 }
 
@@ -291,7 +295,7 @@ fn __onKeyboard(handle: ?*glfw.GLFWwindow, glfw_key: c_int, _: c_int, action: c_
             .key = key,
             .down = down,
             .repeat = repeat, 
-    } }) catch | e | { log.print(.Error, "could not push to window's event queue on key event: {s}\n", .{@errorName(e)}); };
+    } }) catch | e | { log.print(.Error, "could not push to window's event queue on key event: {s}\n", .{ @errorName(e) }); };
 
 }
 
@@ -303,7 +307,7 @@ fn __onChar(handle: ?*glfw.GLFWwindow, glfw_char: c_uint) callconv(.C) void {
 
     window.event_queue.pushBack(.{
         .char = codepoint,
-    }) catch | e | { log.print(.Error, "could not push to window's event queue on char event: {s}\n", .{@errorName(e)}); };
+    }) catch | e | { log.print(.Error, "could not push to window's event queue on char event: {s}\n", .{ @errorName(e) }); };
 
 }
 
@@ -316,7 +320,7 @@ fn __onCursorMove(handle: ?*glfw.GLFWwindow, x: f64, y: f64) callconv(.C) void {
 
     window.event_queue.pushBack(.{
         .cursor_move = window.cursor_pos,
-    }) catch | e | { log.print(.Error, "could not push to window's event queue on cursor move event: {s}\n", .{@errorName(e)}); };
+    }) catch | e | { log.print(.Error, "could not push to window's event queue on cursor move event: {s}\n", .{ @errorName(e) }); };
 
 }
 
@@ -332,7 +336,7 @@ fn __onCursorButton(handle: ?*glfw.GLFWwindow, glfw_button: c_int, action: c_int
             .button = button,
             .down = down,
         }
-    }) catch | e | { log.print(.Error, "could not push to window's event queue on cursor button event: {s}\n", .{@errorName(e)}); };
+    }) catch | e | { log.print(.Error, "could not push to window's event queue on cursor button event: {s}\n", .{ @errorName(e) }); };
 
 }
 
@@ -344,6 +348,28 @@ fn __onScroll(handle: ?*glfw.GLFWwindow, x: f64, y: f64) callconv(.C) void {
 
     window.event_queue.pushBack(.{
         .scroll = scroll,
-    }) catch | e | { log.print(.Error, "could not push to window's event queue on scroll event: {s}\n", .{@errorName(e)}); };
+    }) catch | e | { log.print(.Error, "could not push to window's event queue on scroll event: {s}\n", .{ @errorName(e) }); };
+
+}
+
+fn __onFocus(handle: ?*glfw.GLFWwindow, focused_int: c_int) callconv(.C) void {
+
+    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+
+    const focused = focused_int != 0;
+
+    window.event_queue.pushBack(.{
+        .focus = focused,
+    }) catch | e | { log.print(.Error, "could not push to window's event queue on focus event: {s}\n", .{ @errorName(e) }); };
+
+}
+
+fn __onTerminationRequest(handle: ?*glfw.GLFWwindow) callconv(.C) void {
+
+    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+
+    window.event_queue.pushBack(.{
+        .termination_request = {},
+    }) catch | e | { log.print(.Error, "could not push to window's event queue on termination request event: {s}\n", .{ @errorName(e) }); };
 
 }

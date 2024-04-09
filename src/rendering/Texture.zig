@@ -58,7 +58,7 @@ pub const Texture = struct {
         };
 
         const format: gl.GLenum = switch(image.components_per_pixel) {
-            1 => gl.GL_R,
+            1 => gl.GL_RED,
             2 => gl.GL_RG,
             3 => gl.GL_RGB,
             4 => gl.GL_RGBA,

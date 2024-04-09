@@ -10,7 +10,11 @@ pub const Window = struct {
 
     pub const context = struct {
 
-        pub fn init() !void {
+        pub const InitOptions = struct {
+            prefer_wayland: bool = false,
+        };
+
+        pub fn init(options: InitOptions) !void {
 
             const version: @Vector(3, c_int) = blk: {
                 var x: @Vector(3, c_int) = undefined;
@@ -18,6 +22,12 @@ pub const Window = struct {
                 break :blk x;
             };
             log.print(.Info, "initializing glfw\n\tversion: {}.{}.{}\n", .{ version[0], version[1], version[2] });
+
+            if (options.prefer_wayland) {
+                if (glfw.glfwPlatformSupported(glfw.GLFW_PLATFORM_WAYLAND) == glfw.GLFW_TRUE) {
+                    glfw.glfwInitHint(glfw.GLFW_PLATFORM, glfw.GLFW_PLATFORM_WAYLAND);
+                }
+            }
 
             const ret_code = glfw.glfwInit();
             if (ret_code != glfw.GLFW_TRUE) {
@@ -27,6 +37,14 @@ pub const Window = struct {
                 log.print(.Error, "glfw error {}: {s}\n", .{ glfw_error_number, glfw_error_description_ptr });
                 return error.GLFWInitFailed;
             }
+
+            log.print(.Info, "glfw platform: {s}\n", .{ switch (glfw.glfwGetPlatform()) {
+                glfw.GLFW_PLATFORM_WIN32   => "win32",
+                glfw.GLFW_PLATFORM_COCOA   => "cocoa",
+                glfw.GLFW_PLATFORM_WAYLAND => "wayland",
+                glfw.GLFW_PLATFORM_X11     => "x11",
+                else => "unknown",
+            } });
 
         }
 

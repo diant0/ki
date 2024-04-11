@@ -12,8 +12,8 @@ pub fn DynArr(T: type, config: struct {
         allocator: std.mem.Allocator = undefined,
         buffer: []T = &[_]T{},
 
-        first: usize = 0,
-        len: usize = 0,
+        buffer_offset: usize = 0,
+        item_count: usize = 0,
 
         pub fn init(self: *@This(), allocator: std.mem.Allocator) !void {
 
@@ -28,8 +28,8 @@ pub fn DynArr(T: type, config: struct {
         }
 
         pub fn clear(self: *@This()) void {
-            self.first = 0;
-            self.len = 0;
+            self.buffer_offset = 0;
+            self.item_count = 0;
         }
 
         pub fn shrinkCapacityIfNeeded(self: *@This()) !void {
@@ -47,7 +47,7 @@ pub fn DynArr(T: type, config: struct {
         }
 
         pub inline fn items(self: *const @This()) []T {
-            return self.buffer[self.first..(self.first+self.len)];
+            return self.buffer[self.buffer_offset..(self.buffer_offset+self.item_count)];
         }
 
         pub fn resizeCapacity(self: *@This(), new_capacity: usize) !void {
@@ -61,54 +61,54 @@ pub fn DynArr(T: type, config: struct {
         }
 
         pub fn packBack(self: *@This()) void {
-            std.mem.copyBackwards(T, self.buffer[self.buffer.len-self.len..self.buffer.len], self.items());
-            self.first = self.buffer.len-self.len;
+            std.mem.copyBackwards(T, self.buffer[self.buffer.len-self.item_count..self.buffer.len], self.items());
+            self.buffer_offset = self.buffer.len-self.item_count;
         }
 
         pub fn packFront(self: *@This()) void {
-            std.mem.copyForwards(T, self.buffer[0..self.len], self.items());
-            self.first = 0;
+            std.mem.copyForwards(T, self.buffer[0..self.item_count], self.items());
+            self.buffer_offset = 0;
         }
 
         pub fn pushBack(self: *@This(), value: T) !void {
 
-            if (self.len + 1 == self.buffer.len) {
+            if (self.item_count + 1 == self.buffer.len) {
                 try self.resizeCapacity(self.buffer.len * 2);
             }
 
-            if (self.first + self.len >= self.buffer.len) {
+            if (self.buffer_offset + self.item_count >= self.buffer.len) {
                 self.packFront();
             }
 
-            self.buffer[self.first + self.len] = value;
-            self.len += 1;
+            self.buffer[self.buffer_offset + self.item_count] = value;
+            self.item_count += 1;
 
         }
 
         pub fn pushFront(self: *@This(), value: T) !void {
 
-            if (self.len + 1 == self.buffer.len) {
+            if (self.item_count + 1 == self.buffer.len) {
                 try self.resizeCapacity(self.buffer.len * 2);
             }
 
-            if (self.first == 0) {
+            if (self.buffer_offset == 0) {
                 self.packBack();
             }
 
-            self.buffer[self.first-1] = value;
-            self.first -= 1;
-            self.len += 1;
+            self.buffer[self.buffer_offset-1] = value;
+            self.buffer_offset -= 1;
+            self.item_count += 1;
 
         }
 
         pub fn popBack(self: *@This()) PopReturnType {
             
-            if (self.len == 0) {
+            if (self.item_count == 0) {
                 return null;
             }
 
-            const value = self.buffer[self.first+self.len-1];
-            self.len -= 1;
+            const value = self.buffer[self.buffer_offset+self.item_count-1];
+            self.item_count -= 1;
 
             if (config.auto_shrink_capacity) {
                 try self.shrinkCapacityIfNeeded();
@@ -120,13 +120,13 @@ pub fn DynArr(T: type, config: struct {
 
         pub fn popFront(self: *@This()) PopReturnType {
 
-            if (self.len == 0) {
+            if (self.item_count == 0) {
                 return null;
             }
 
-            const value = self.buffer[self.first];
-            self.first += 1;
-            self.len -= 1;
+            const value = self.buffer[self.buffer_offset];
+            self.buffer_offset += 1;
+            self.item_count -= 1;
 
 
             if (config.auto_shrink_capacity) {
@@ -139,38 +139,38 @@ pub fn DynArr(T: type, config: struct {
 
         pub fn insertAt(self: *@This(), index: usize, value: T) !void {
 
-            if (self.len == 0 and index == 0) {
+            if (self.item_count == 0 and index == 0) {
                 try self.pushBack(value);
                 return;
             }
 
-            if (index >= self.len) {
+            if (index >= self.item_count) {
                 return error.IndexOutOfRange;
             }
 
-            if (self.len + 1 == self.buffer.len) {
+            if (self.item_count + 1 == self.buffer.len) {
                 try self.resizeCapacity(self.buffer.len * 2);
             }
 
-            if (self.first+self.len+1 > self.buffer.len) {
+            if (self.buffer_offset+self.item_count+1 > self.buffer.len) {
                 self.packFront();
             }
 
-            const shift_right = self.first == 0 or index > self.len / 2;
+            const shift_right = self.buffer_offset == 0 or index > self.item_count / 2;
 
             if (shift_right) {
                 std.mem.copyBackwards(T,
-                    self.buffer[self.first+index+1..self.first+self.len+1],
-                    self.buffer[self.first+index..self.first+self.len]);
-                self.len += 1;
-                self.buffer[self.first+index] = value;
+                    self.buffer[self.buffer_offset+index+1..self.buffer_offset+self.item_count+1],
+                    self.buffer[self.buffer_offset+index..self.buffer_offset+self.item_count]);
+                self.item_count += 1;
+                self.buffer[self.buffer_offset+index] = value;
             } else {
                 std.mem.copyForwards(T,
-                    self.buffer[self.first-1..self.first+index-1],
-                    self.buffer[self.first..self.first+index]);
-                self.len += 1;
-                self.first -= 1;
-                self.buffer[self.first+index] = value;
+                    self.buffer[self.buffer_offset-1..self.buffer_offset+index-1],
+                    self.buffer[self.buffer_offset..self.buffer_offset+index]);
+                self.item_count += 1;
+                self.buffer_offset -= 1;
+                self.buffer[self.buffer_offset+index] = value;
             }
 
         }
@@ -181,30 +181,30 @@ pub fn DynArr(T: type, config: struct {
                 return self.popFront();
             }
 
-            if (self.len == 0) {
+            if (self.item_count == 0) {
                 return null;
             }
 
-            if (index >= self.len) {
+            if (index >= self.item_count) {
                 return null;
             }
 
-            const value = self.buffer[self.first+index];
+            const value = self.buffer[self.buffer_offset+index];
 
-            const shift_left = self.first == 0 or index > self.len / 2;
+            const shift_left = self.buffer_offset == 0 or index > self.item_count / 2;
 
             if (shift_left) {
                 std.mem.copyForwards(T,
-                    self.buffer[self.first+index..self.first+self.len-1],
-                    self.buffer[self.first+index+1..self.first+self.len]);
-                self.len -= 1;
+                    self.buffer[self.buffer_offset+index..self.buffer_offset+self.item_count-1],
+                    self.buffer[self.buffer_offset+index+1..self.buffer_offset+self.item_count]);
+                self.item_count -= 1;
             } else {
                 std.mem.copyBackwards(T,
-                    self.buffer[self.first+1..self.first+index],
-                    self.buffer[self.first..self.first+index-1]
+                    self.buffer[self.buffer_offset+1..self.buffer_offset+index],
+                    self.buffer[self.buffer_offset..self.buffer_offset+index-1]
                 );
-                self.first += 1;
-                self.len -= 1;
+                self.buffer_offset += 1;
+                self.item_count -= 1;
             }
 
             if (config.auto_shrink_capacity) {

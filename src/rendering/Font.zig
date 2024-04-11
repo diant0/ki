@@ -308,6 +308,11 @@ pub const Font = struct {
         return line_height / self.line_height;
     }
 
+    pub fn scaledStringWidth(self: *const @This(), string: []const utf.Codepoint, line_height: f32) !f32 {
+        const base = try self.baseStringWidth(string);
+        return base * scaleForLineHeight(line_height);
+    }
+
     pub fn stringWidth(self: *const @This(), string: []const utf.Codepoint) !f32 {
         var width: f32 = 0;
         for (string, 0..) | _, i | {

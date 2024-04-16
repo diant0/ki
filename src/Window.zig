@@ -14,7 +14,7 @@ pub const Window = struct {
             prefer_wayland: bool = false,
         };
 
-        pub fn init(options: InitOptions) !void {
+        pub fn init(options: @This().InitOptions) !void {
 
             const version: @Vector(3, c_int) = blk: {
                 var x: @Vector(3, c_int) = undefined;
@@ -69,14 +69,32 @@ pub const Window = struct {
         .auto_shrink_capacity = false,
     }) = .{},
 
-    pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator, title: [:0]const u8, size: @Vector(2, u32)) !void {
+    pub const InitOptions = struct {
+        title: []const u8,
+        size: @Vector(2, u32),
+        fullscreen: bool = false,
+    };
+
+    pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator, init_options: @This().InitOptions) !void {
 
         glfw.glfwWindowHint(glfw.GLFW_OPENGL_FORWARD_COMPAT, glfw.GLFW_TRUE);
         glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MAJOR, 4);
         glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MINOR, 5);
         glfw.glfwWindowHint(glfw.GLFW_OPENGL_PROFILE, glfw.GLFW_OPENGL_CORE_PROFILE);
 
-        const handle = glfw.glfwCreateWindow(@intCast(size[0]), @intCast(size[1]), title, null, null)
+        const monitor = glfw.glfwGetPrimaryMonitor();
+        const mode = glfw.glfwGetVideoMode(monitor)[0];
+
+        glfw.glfwWindowHint(glfw.GLFW_RED_BITS,   mode.redBits);
+        glfw.glfwWindowHint(glfw.GLFW_GREEN_BITS, mode.greenBits);
+        glfw.glfwWindowHint(glfw.GLFW_BLUE_BITS,  mode.blueBits);
+        glfw.glfwWindowHint(glfw.GLFW_REFRESH_RATE, mode.refreshRate);
+
+        const size: @Vector(2, u32) = if (init_options.fullscreen) .{
+            @intCast(mode.width), @intCast(mode.height),    
+        } else init_options.size;
+
+        const handle = glfw.glfwCreateWindow(@intCast(size[0]), @intCast(size[1]), init_options.title.ptr, if (init_options.fullscreen) monitor else null, null)
             orelse return error.GLFWCreateWindowFailed;
 
         self.handle   = handle;
@@ -125,6 +143,34 @@ pub const Window = struct {
 
     pub fn swapBuffers(self: *const @This()) void {
         glfw.glfwSwapBuffers(self.handle);
+    }
+
+    pub fn setSize(self: *const @This(), size: @Vector(2, u32)) void {
+        glfw.glfwSetWindowSize(self.handle, @intCast(size[0]), @intCast(size[1]));
+    }
+
+    pub const Mode = union(enum) {
+        fullscreen: void,
+        windowed: @Vector(2, u32),
+    };
+
+    pub fn setMode(self: *const @This(), mode: Mode) void {
+
+        switch (mode) {
+
+            .fullscreen => {
+                const monitor = glfw.glfwGetWindowMonitor(self.handle) orelse glfw.glfwGetPrimaryMonitor();
+                const video_mode = glfw.glfwGetVideoMode(monitor)[0];
+                glfw.glfwSetWindowMonitor(self.handle, monitor, 0, 0, video_mode.width, video_mode.height, video_mode.refreshRate);
+            },
+
+            .windowed => | size | {
+                glfw.glfwSetWindowMonitor(self.handle, null, 64, 64, @intCast(size[0]), @intCast(size[1]), 0);
+                self.setSize(size);
+            },
+
+        }
+
     }
 
 };

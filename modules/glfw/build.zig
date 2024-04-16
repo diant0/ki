@@ -29,9 +29,6 @@ pub fn build(b: *std.Build) !void {
     
     }
 
-    const generated_wayland_headers_path = try b.cache_root.handle.realpathAlloc(b.allocator, cache_subpath);
-    defer b.allocator.free(generated_wayland_headers_path);
-
     // --------------------------------
     
     const module = b.addModule("glfw", .{
@@ -47,6 +44,8 @@ pub fn build(b: *std.Build) !void {
             module.addIncludePath(.{ .path = "/usr/include" });
 
             if (build_platform_wayland) {
+                const generated_wayland_headers_path = try b.cache_root.handle.realpathAlloc(b.allocator, cache_subpath);
+                defer b.allocator.free(generated_wayland_headers_path);
                 module.addIncludePath(.{ .path = generated_wayland_headers_path });
             }
         
@@ -73,6 +72,8 @@ pub fn build(b: *std.Build) !void {
             lib.addIncludePath(.{ .path = "/usr/include" });
 
             if (build_platform_wayland) {
+                const generated_wayland_headers_path = try b.cache_root.handle.realpathAlloc(b.allocator, cache_subpath);
+                defer b.allocator.free(generated_wayland_headers_path);
                 lib.addIncludePath(.{ .path = generated_wayland_headers_path });
             }
         
@@ -252,6 +253,7 @@ const c_src_path = repo_path ++ "/src";
 
 pub const c_flag_build_x11     = "-D_GLFW_X11";
 pub const c_flag_build_wayland = "-D_GLFW_WAYLAND";
+pub const c_flag_build_win32   = "-D_GLFW_WIN32";
 
 const c_src_common = &[_][]const u8 {
     c_src_path ++ "/init.c",
@@ -292,4 +294,17 @@ const c_src_platform_wayland = &[_][]const u8 {
     c_src_path ++ "/wl_init.c",
     c_src_path ++ "/wl_monitor.c",
     c_src_path ++ "/wl_window.c",                    
+};
+
+const c_src_platform_win32 = &[_][]const u8 {
+    c_src_path ++ "/win32_init.c",
+    c_src_path ++ "/win32_module.c",
+    c_src_path ++ "/win32_monitor.c",
+    c_src_path ++ "/win32_window.c",
+    c_src_path ++ "/win32_joystick.c",
+    c_src_path ++ "/win32_time.c",
+    c_src_path ++ "/win32_thread.c",
+    c_src_path ++ "/wgl_context.c",
+    c_src_path ++ "/egl_context.c",
+    c_src_path ++ "/osmesa_context.c",
 };

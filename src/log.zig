@@ -23,7 +23,7 @@ const prefixes_plain: std.EnumArray(Severity, []const u8) = .{
     },
 };
 
-pub var out_file = std.io.getStdOut();
+pub var out_file: ?std.fs.File = null;
 pub var min_severity: Severity = .Info;
 
 pub fn print(severity: Severity, comptime fmt: []const u8, args: anytype) void {
@@ -32,15 +32,24 @@ pub fn print(severity: Severity, comptime fmt: []const u8, args: anytype) void {
         return;
     }
 
-    const prefixes = if (out_file.isTty()) prefixes_tty else prefixes_plain;
+    if (out_file) | file | {
+        
+        const prefixes = if (file.isTty()) prefixes_tty else prefixes_plain;
+    
+        file.writer().print("{s}", .{ prefixes.get(severity) }) catch | e | {
+            std.debug.print("log.print failed with {s}\n", .{ @errorName(e) });
+        };
 
-    out_file.writer().print("{s}", .{ prefixes.get(severity) }) catch | e | {
-        std.debug.print("log.print failed with {s}\n", .{ @errorName(e) });
-    };
+        file.writer().print(fmt, args) catch {
+            std.debug.print("\t{s}: ", .{ @tagName(severity) });
+            std.debug.print(fmt, args);
+        };
 
-    out_file.writer().print(fmt, args) catch {
-        std.debug.print("\t{s}: ", .{ @tagName(severity) });
+    } else {
+
+        std.debug.print("{s}", .{ prefixes_tty.get(severity) });
         std.debug.print(fmt, args);
-    };
+
+    }
 
 }

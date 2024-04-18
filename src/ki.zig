@@ -31,6 +31,9 @@ pub const Font          = @import("rendering/Font.zig").Font;
 pub const SpriteBatch   = @import("rendering/SpriteBatch.zig").SpriteBatch;
 pub const RenderTarget  = @import("rendering/RenderTarget.zig").RenderTarget;
 
+pub const AudioIO       = @import("audio/AudioIO.zig").AudioIO;
+pub const AudioSource   = @import("audio/AudioSource.zig").AudioSource;
+
 pub const Version = struct {
 
     major: u32,

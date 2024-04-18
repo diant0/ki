@@ -16,13 +16,6 @@ pub const Window = struct {
 
         pub fn init(options: @This().InitOptions) !void {
 
-            const version: @Vector(3, c_int) = blk: {
-                var x: @Vector(3, c_int) = undefined;
-                glfw.glfwGetVersion(&x[0], &x[1], &x[2]);
-                break :blk x;
-            };
-            log.print(.Info, "initializing glfw\n\tversion: {}.{}.{}\n", .{ version[0], version[1], version[2] });
-
             if (options.prefer_wayland) {
                 if (glfw.glfwPlatformSupported(glfw.GLFW_PLATFORM_WAYLAND) == glfw.GLFW_TRUE) {
                     glfw.glfwInitHint(glfw.GLFW_PLATFORM, glfw.GLFW_PLATFORM_WAYLAND);
@@ -38,14 +31,6 @@ pub const Window = struct {
                 return error.GLFWInitFailed;
             }
 
-            log.print(.Info, "glfw platform: {s}\n", .{ switch (glfw.glfwGetPlatform()) {
-                glfw.GLFW_PLATFORM_WIN32   => "win32",
-                glfw.GLFW_PLATFORM_COCOA   => "cocoa",
-                glfw.GLFW_PLATFORM_WAYLAND => "wayland",
-                glfw.GLFW_PLATFORM_X11     => "x11",
-                else => "unknown",
-            } });
-
         }
 
         pub fn terminate() void {
@@ -54,6 +39,22 @@ pub const Window = struct {
 
         pub fn pollEvents() void {
             glfw.glfwPollEvents();
+        }
+
+        pub fn glfwVersion() @Vector(3, u32) {
+            var x: @Vector(3, c_int) = undefined;
+            glfw.glfwGetVersion(&x[0], &x[1], &x[2]);
+            return @intCast(x);
+        }
+
+        pub fn glfwPlatform() []const u8 {
+            return switch (glfw.glfwGetPlatform()) {
+                glfw.GLFW_PLATFORM_WIN32   => "win32",
+                glfw.GLFW_PLATFORM_COCOA   => "cocoa",
+                glfw.GLFW_PLATFORM_WAYLAND => "wayland",
+                glfw.GLFW_PLATFORM_X11     => "x11",
+                else => "unknown",
+            };
         }
 
         pub const getProcAddress = glfw.glfwGetProcAddress;

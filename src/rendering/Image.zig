@@ -37,6 +37,7 @@ pub fn Image(ComponentT: type) type {
             const exe_dir_path = try std.fs.selfExeDirPathAlloc(allocator);
             defer allocator.free(exe_dir_path);
             var exe_dir = try std.fs.openDirAbsolute(exe_dir_path, .{});
+            defer exe_dir.close();
 
             const abs_path = try exe_dir.realpathAlloc(allocator, path);
             defer allocator.free(abs_path);
@@ -108,7 +109,7 @@ pub fn Image(ComponentT: type) type {
             const abs_path_heap = try allocator.dupe(u8, abs_path);
             defer allocator.free(abs_path_heap);
 
-            return try self.stbiwEncodeToAbsPath(abs_path, format);
+            try self.stbiwEncodeToAbsPath(abs_path, format);
 
         }
 
@@ -245,6 +246,7 @@ pub fn Image(ComponentT: type) type {
             const exe_dir_path = try std.fs.selfExeDirPathAlloc(allocator);
             defer allocator.free(exe_dir_path);
             var exe_dir = try std.fs.openDirAbsolute(exe_dir_path, .{});
+            defer exe_dir.close();
 
             const abs_path = try exe_dir.realpathAlloc(allocator, path);
             defer allocator.free(abs_path);
@@ -309,7 +311,7 @@ pub fn Image(ComponentT: type) type {
             const abs_path_heap = try allocator.dupe(u8, abs_path);
             defer allocator.free(abs_path_heap);
 
-            return try self.qoiEncodeToAbsPath(abs_path);
+            try self.qoiEncodeToAbsPath(abs_path);
 
         }
 
@@ -324,7 +326,7 @@ pub fn Image(ComponentT: type) type {
             defer file.close();
             errdefer std.fs.deleteFileAbsolute(path) catch {};
 
-            return try self.qoiEncodeToFile(file);    
+            try self.qoiEncodeToFile(file);    
 
         }
 

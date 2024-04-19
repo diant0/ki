@@ -1,6 +1,8 @@
 const AudioIO = @import("AudioIO.zig").AudioIO;
 const AudioSource = @import("AudioSource.zig").AudioSource;
 const math = @import("math");
+const miniaudio = @import("miniaudio");
+const std = @import("std");
 
 pub const AudioPlayer = struct {
     
@@ -17,39 +19,14 @@ pub const AudioPlayer = struct {
 
     pub fn sumToBufferAdvance(self: *@This(), buffer: []AudioIO.SampleT) usize {
 
-        const samples_left = self.source.sampleCount() - self.cursor;
-        const result_sample_count = @min(samples_left, buffer.len);
+        const channel_multipliers = [AudioIO.channels]AudioIO.SampleT {
+            math.clamp(-self.pan+1, 0, 1) * self.gain,
+            math.clamp(self.pan+1, 0, 1) * self.gain,
+        };
 
-        defer self.cursor += result_sample_count;
+        const result_sample_count = self.source.sumToBuffer(self.cursor, buffer, channel_multipliers);
 
-        switch (self.source) {
-            .predecoded => | x | {
-                for (0..result_sample_count) | i | {
-                    const pan_gain = if (i%2==0) math.clamp(-self.pan+1, 0, 1) else math.clamp(self.pan+1, 0, 1);
-                    buffer[i] += x.samples[self.cursor+i] * self.gain * pan_gain;
-                }
-            }
-        }
-
-        return result_sample_count;
-
-    }
-
-    pub fn fillBufferAdvance(self: *@This(), buffer: []AudioIO.SampleT) usize {
-
-        const samples_left = self.source.sampleCount() - self.cursor;
-        const result_sample_count = @min(samples_left, buffer.len);
-
-        defer self.cursor += result_sample_count;
-
-        switch (self.source) {
-            .predecoded => | x | {
-                for (0..result_sample_count) | i | {
-                    const pan_gain = if (i%2==0) math.clamp(-self.pan+1, 0, 1) else math.clamp(self.pan+1, 0, 1);
-                    buffer[i] = x.samples[self.cursor+i] * self.gain * pan_gain;
-                }
-            }
-        }
+        self.cursor += result_sample_count;
 
         return result_sample_count;
 

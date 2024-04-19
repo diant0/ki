@@ -25,6 +25,7 @@ pub const AudioGroup = struct {
         gain: f32 = 1,
     };
 
+    /// NOTE: playing multiple instances of same .streamed audio sources will cause problems
     pub fn play(self: *@This(), audio: AudioSource, play_options: PlayOptions) !void {
         
         const player: AudioPlayer = .{

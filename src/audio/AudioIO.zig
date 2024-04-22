@@ -50,6 +50,10 @@ pub const AudioIO = struct {
 
 fn audioDataCallback(device: [*c]miniaudio.ma_device, output_opaque: ?*anyopaque, _: ?*const anyopaque, frame_count: miniaudio.ma_uint32) callconv(.C) void {
 
+    if (miniaudio.ma_device_get_state(device) == miniaudio.ma_device_state_stopping) {
+        return;
+    }
+
     const audio_io: *AudioIO = if (device[0].pUserData) | ptr | @ptrCast(@alignCast(ptr)) else {
         log.print(.Error, "could not retrieve audio device data\n", .{});
         return;

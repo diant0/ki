@@ -12,6 +12,7 @@ pub const AudioPlayer = struct {
     // from -1 to 1
     pan: f32 = 1.0,
     gain: f32 = 1.0,
+    loop: bool = false,
 
     pub fn reset(self: *@This()) void {
         self.cursor = 0;
@@ -24,11 +25,25 @@ pub const AudioPlayer = struct {
             math.clamp(self.pan+1, 0, 1) * self.gain,
         };
 
-        const result_sample_count = self.source.sumToBuffer(self.cursor, buffer, channel_multipliers);
+        if (self.loop) {
 
-        self.cursor += result_sample_count;
+            var samples_left_to_fill_buffer = buffer.len;
+            var buffer_offset: usize = 0;
+            while (samples_left_to_fill_buffer > 0) {
+                const pass_sample_count = self.source.sumToBuffer(self.cursor, buffer[buffer_offset..buffer.len], channel_multipliers);
+                samples_left_to_fill_buffer -= pass_sample_count;
+                buffer_offset += pass_sample_count;
+                self.cursor = (self.cursor + pass_sample_count) % self.source.sampleCount();
+            }
+            return buffer.len;
 
-        return result_sample_count;
+        } else {
+        
+            const first_pass_sample_count = self.source.sumToBuffer(self.cursor, buffer, channel_multipliers);
+            self.cursor += first_pass_sample_count;
+            return first_pass_sample_count;
+        
+        }
 
     }
 

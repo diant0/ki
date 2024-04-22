@@ -23,6 +23,7 @@ pub const AudioGroup = struct {
         starting_cursor: usize = 0,
         pan: f32 = 0,
         gain: f32 = 1,
+        loop: bool = false,
     };
 
     /// NOTE: playing multiple instances of same .streamed audio sources will cause problems
@@ -33,6 +34,7 @@ pub const AudioGroup = struct {
             .cursor = play_options.starting_cursor,
             .pan = play_options.pan,
             .gain = play_options.gain,
+            .loop = play_options.loop,
         };
 
         for (self.players.items(), 0..) | audio_player_slot, i | {
@@ -53,7 +55,7 @@ pub const AudioGroup = struct {
         for (self.players.items(), 0..) | _, i | {
             if (self.players.items()[i]) | *audio_player | {
                 const advanced_by = audio_player.sumToBufferAdvance(buffer);
-                if (advanced_by < buffer.len) {
+                if (advanced_by < buffer.len and !audio_player.loop) {
                     self.players.items()[i] = null;
                 }
             }

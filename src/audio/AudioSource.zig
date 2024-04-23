@@ -4,98 +4,103 @@ const miniaudio = @import("miniaudio");
 const AudioPlayer = @import("AudioPlayer.zig").AudioPlayer;
 const DynArr = @import("../DynArr.zig").DynArr;
 
-/// NOTE: .streamed_from_memory is useless on fast drives.
-pub const AudioSourceType = enum {
-    predecoded, decoded_threaded, streamed_from_disk, streamed_from_memory,
+pub const DecodingStrategy = enum {
+    blocking, nonblocking, streamed,
 };
 
-pub const AudioSource = union(AudioSourceType) {
+pub const AudioSource = union(DecodingStrategy) {
 
-    predecoded: AudioSourcePredecoded,
-    decoded_threaded: AudioSourceDecodedThreaded,
-    streamed_from_disk: AudioSourceStreamedFromDisk,
-    streamed_from_memory: AudioSourceStreamedFromMemory,
+    // NOTE: blocking and nonblocking decoding strategies will result in pretty
+    // high peak memory usage since until decoding finished, we need both
+    // encoded bytes and decoded samples in-memory.
+    // reason for this is we cannot use ma_decoder with zig's file io.
+    // ma_decoder expects either a filepath or a whole file's contents in-memory.
 
-    pub fn maFromPathRelToExeAlloc(allocator: std.mem.Allocator, path: []const u8, audio_source_type: AudioSourceType) !@This() {
-        return switch (audio_source_type) {
-            .predecoded           => .{ .predecoded           = try AudioSourcePredecoded.maFromPathRelToExeAlloc(allocator, path), },
-            .decoded_threaded     => .{ .decoded_threaded     = try AudioSourceDecodedThreaded.maFromPathRelToExeAlloc(allocator, path), },
-            .streamed_from_disk   => .{ .streamed_from_disk   = try AudioSourceStreamedFromDisk.maFromPathRelToExeAlloc(allocator, path), },
-            .streamed_from_memory => .{ .streamed_from_memory = try AudioSourceStreamedFromMemory.maFromPathRelToExeAlloc(allocator, path) },
+    // TODO: investigate qoa, reference implementation is pretty light, so
+    // implementing/adapting it may enable streaming encoded bytes from disk,
+    // potentially reducing peak memory usage.
+    // however, qoa.h uses c_shorts(i16). should be trivial to map, especially with @Vector,
+    // still, its an additional step. speed of decoding might be able to offset this.
+
+    /// simplest one.
+    /// setback is you have to wait until audio has been decoded.
+    blocking:    AudioSourceBlocking,
+
+    /// decodes in a separate thread.
+    /// setback is freeing sample buffer while decoding still going on will result in segfault.
+    nonblocking: AudioSourceNonBlocking,
+
+    // TODO?: fold blocking and nonblocking into one with it always decoding in a separate thread,
+    // but expose a procedure that will block until decoding is finished.
+    // might not be desirable when overhead of spawning a thread is significant.
+
+    /// streams directly from disk.
+    /// sebacks are not being able to use this strategy from memory and not being able to play more
+    /// than one instance of such audio source.
+    streamed:    AudioSourceStreamed,
+
+    // TODO?: streaming from memory
+    // might be useful when memory footprint is an issue and situation requires zig's file io.
+
+    pub fn maFromPathRelToExeAlloc(allocator: std.mem.Allocator, path: []const u8, decoding_strategy: DecodingStrategy) !@This() {
+        return switch (decoding_strategy) {
+            .blocking    => .{ .blocking    = try AudioSourceBlocking.maFromPathRelToExeAlloc(allocator, path), },
+            .nonblocking => .{ .nonblocking = try AudioSourceNonBlocking.maFromPathRelToExeAlloc(allocator, path), },
+            .streamed    => .{ .streamed    = try AudioSourceStreamed.maFromPathRelToExeAlloc(allocator, path), },
         };
     }
 
-    pub fn maFromAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8, audio_source_type: AudioSourceType) !@This() {
-        return switch (audio_source_type) {
-            .predecoded           => .{ .predecoded           = try AudioSourcePredecoded.maFromAbsPathAlloc(allocator, path), },
-            .decoded_threaded     => .{ .decoded_threaded     = try AudioSourceDecodedThreaded.maFromAbsPathAlloc(allocator, path), },
-            .streamed_from_disk   => .{ .streamed_from_disk   = try AudioSourceStreamedFromDisk.maFromAbsPath(path), },
-            .streamed_from_memory => .{ .streamed_from_memory = try AudioSourceStreamedFromMemory.maFromAbsPathAlloc(allocator, path) },
+    pub fn maFromAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8, decoding_strategy: DecodingStrategy) !@This() {
+        return switch (decoding_strategy) {
+            .blocking    => .{ .blocking    = try AudioSourceBlocking.maFromAbsPathAlloc(allocator, path), },
+            .nonblocking => .{ .nonblocking = try AudioSourceNonBlocking.maFromAbsPathAlloc(allocator, path), },
+            .streamed    => .{ .streamed    = try AudioSourceStreamed.maFromAbsPathAlloc(allocator, path), },
         };
     }
 
-    pub fn maFromFileAlloc(allocator: std.mem.Allocator, file: std.fs.File, audio_source_type: AudioSourceType) !@This() {
-        return switch (audio_source_type) {
-            .predecoded           => .{ .predecoded           = try AudioSourcePredecoded.maFromFileAlloc(allocator, file), },
-            .decoded_threaded     => .{ .decoded_threaded     = try AudioSourceDecodedThreaded.maFromFileAlloc(allocator, file), },
-            .streamed_from_disk   => return error.NoStreamedAudioWithZigFileIO,
-            .streamed_from_memory => .{ .streamed_from_memory = try AudioSourceStreamedFromMemory.maFromFileAlloc(allocator, file), },
+    pub fn maFromFileAlloc(allocator: std.mem.Allocator, file: std.fs.File, decoding_strategy: DecodingStrategy) !@This() {
+        return switch (decoding_strategy) {
+            .blocking    => .{ .blocking    = try AudioSourceBlocking.maFromFileAlloc(allocator, file), },
+            .nonblocking => .{ .nonblocking = try AudioSourceNonBlocking.maFromFileAlloc(allocator, file), },
+            .streamed    => return error.StreamingAudioNotAvailableWithZigFileIO,
         };
     }
 
-    pub fn maFromMemAlloc(allocator: std.mem.Allocator, bytes: []const u8, audio_source_type: AudioSourceType) !@This() {
-        return switch (audio_source_type) {
-            .predecoded           => .{ .predecoded           = try AudioSourcePredecoded.maFromMemAlloc(allocator, bytes), },
-            .decoded_threaded     => .{ .decoded_threaded     = try AudioSourceDecodedThreaded.maFromMemAlloc(allocator, bytes), },
-            .streamed_from_disk   => return error.NoStreamedAudioFromMemory,
-            .streamed_from_memory => .{ .streamed_from_memory = try AudioSourceStreamedFromMemory.fromMem(bytes) }
+    pub fn maFromMemAlloc(allocator: std.mem.Allocator, bytes: []const u8, decoding_strategy: DecodingStrategy) !@This() {
+        return switch (decoding_strategy) {
+            .blocking    => .{ .blocking    = try AudioSourceBlocking.maFromMemAlloc(allocator, bytes), },
+            .nonblocking => .{ .nonblocking = try AudioSourceNonBlocking.maFromMemAlloc(allocator, bytes), },
+            .streamed    => return error.StreamingAudioNotAvailableFromMemory,
         };
     }
 
     pub fn free(self: *@This(), allocator: std.mem.Allocator) void {
         switch (self.*) {
-            .predecoded           => self.predecoded.free(allocator),
-            .decoded_threaded     => self.decoded_threaded.free(allocator),
-            .streamed_from_disk   => self.streamed_from_disk.free(),
-            .streamed_from_memory => self.streamed_from_memory.free(allocator),
+            .blocking    => self.blocking.free(allocator),
+            .nonblocking => self.nonblocking.free(allocator),
+            .streamed    => self.streamed.free(),
         }
     }
 
-    pub var nanos_spent: i128 = 0;
-    pub var samples_passed: i128 = 0;
-
     pub fn sumToBuffer(self: *@This(), offset: usize, buffer: []AudioIO.SampleT, channel_multipliers: [AudioIO.channels]AudioIO.SampleT) usize {
-        
-        const start_time = std.time.nanoTimestamp();
-        defer {
-            nanos_spent += std.time.nanoTimestamp() - start_time;
-            samples_passed += buffer.len;
-        }
-
         return switch (self.*) {
-            .predecoded           => self.predecoded.sumToBuffer(offset, buffer, channel_multipliers),
-            .decoded_threaded     => self.decoded_threaded.sumToBuffer(offset, buffer, channel_multipliers),
-            .streamed_from_disk   => self.streamed_from_disk.sumToBuffer(offset, buffer, channel_multipliers),
-            .streamed_from_memory => self.streamed_from_memory.sumToBuffer(offset, buffer, channel_multipliers),
+            .blocking    => self.blocking.sumToBuffer(offset, buffer, channel_multipliers),
+            .nonblocking => self.nonblocking.sumToBuffer(offset, buffer, channel_multipliers),
+            .streamed    => self.streamed.sumToBuffer(offset, buffer, channel_multipliers),
         };
     }
 
-    pub fn sampleCount(self: *const @This()) usize {
+    pub inline fn sampleCount(self: *const @This()) usize {
         return switch(self.*) {
-            .predecoded => self.predecoded.samples.len,
-            .decoded_threaded => self.decoded_threaded.samples.len,
-            .streamed_from_disk => switch (self.streamed_from_disk) {
-                .miniaudio => self.streamed_from_disk.miniaudio.sample_count,
-            },
-            .streamed_from_memory => switch (self.streamed_from_memory) {
-                .miniaudio => self.streamed_from_memory.miniaudio.sample_count,
-            },
+            .blocking    => self.blocking.sampleCount(),
+            .nonblocking => self.nonblocking.sampleCount(),
+            .streamed    => self.streamed.sampleCount(),
         };
     }
 
 };
 
-pub const AudioSourcePredecoded = struct {
+pub const AudioSourceBlocking = struct {
 
     samples: []const AudioIO.SampleT,
 
@@ -172,6 +177,10 @@ pub const AudioSourcePredecoded = struct {
         allocator.free(self.samples);
     }
 
+    pub inline fn sampleCount(self: *const @This()) usize {
+        return self.samples.len;
+    }
+
     pub fn sumToBuffer(self: *const @This(), offset: usize, buffer: []AudioIO.SampleT, channel_multipliers: [AudioIO.channels]AudioIO.SampleT) usize {
 
         const samples_left = @min(buffer.len, self.samples.len - offset);
@@ -185,19 +194,19 @@ pub const AudioSourcePredecoded = struct {
 
 };
 
-pub const AudioSourceStreamedFromDisk = union(enum) {
+pub const AudioSourceStreamed = union(enum) {
 
-    miniaudio: AudioSourceStreamedFromDiskMiniaudio,
+    miniaudio: AudioSourceStreamedMiniaudio,
 
     pub fn maFromPathRelToExeAlloc(allocator: std.mem.Allocator, path: []const u8) !@This() {
         return .{
-            .miniaudio = try AudioSourceStreamedFromDiskMiniaudio.fromPathRelToExeAlloc(allocator, path),
+            .miniaudio = try AudioSourceStreamedMiniaudio.fromPathRelToExeAlloc(allocator, path),
         };
     }
 
     pub fn maFromAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8) !@This() {
         return .{
-            .miniaudio = try AudioSourceStreamedFromDiskMiniaudio.fromAbsPathAlloc(allocator, path),
+            .miniaudio = try AudioSourceStreamedMiniaudio.fromAbsPathAlloc(allocator, path),
         };
     }
 
@@ -205,6 +214,12 @@ pub const AudioSourceStreamedFromDisk = union(enum) {
         switch (self.*) {
             .miniaudio => self.miniaudio.free(),
         }
+    }
+
+    pub inline fn sampleCount(self: *const @This()) usize {
+        return switch (self.*) {
+            .miniaudio => self.miniaudio.sample_count,
+        };
     }
 
     pub fn sumToBuffer(self: *@This(), offset: usize, buffer: []AudioIO.SampleT, channel_multipliers: [AudioIO.channels]AudioIO.SampleT) usize {
@@ -215,7 +230,105 @@ pub const AudioSourceStreamedFromDisk = union(enum) {
 
 };
 
-pub const AudioSourceStreamedFromDiskMiniaudio = struct {
+pub const AudioSourceNonBlocking = struct {
+
+    samples: []const AudioIO.SampleT,
+
+    pub fn maFromPathRelToExeAlloc(allocator: std.mem.Allocator, path: []const u8) !@This() {
+
+        const exe_dir_path = try std.fs.selfExeDirPathAlloc(allocator);
+        defer allocator.free(exe_dir_path);
+        var exe_dir = try std.fs.openDirAbsolute(exe_dir_path, .{});
+        defer exe_dir.close();
+
+        const abs_path = try exe_dir.realpathAlloc(allocator, path);
+        defer allocator.free(abs_path);
+
+        return try maFromAbsPathAlloc(allocator, abs_path);
+
+    }
+
+    pub fn maFromAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8) !@This() {
+
+        const file = try std.fs.openFileAbsolute(path, .{});
+        defer file.close();
+
+        return try maFromFileAlloc(allocator, file);
+
+    }
+
+    pub fn maFromFileAlloc(allocator: std.mem.Allocator, file: std.fs.File) !@This() {
+
+        const bytes = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
+
+        return try maFromMemAlloc(allocator, bytes);
+
+    }
+
+    pub fn maFromMemAlloc(allocator: std.mem.Allocator, bytes: []const u8) !@This() {
+
+        const decoder_config = miniaudio.ma_decoder_config_init(AudioIO.format, AudioIO.channels, AudioIO.sample_rate);
+
+        const decoder = blk: {
+            const x = try allocator.create(miniaudio.ma_decoder);
+            const decoder_init_result = miniaudio.ma_decoder_init_memory(bytes.ptr, @intCast(bytes.len), &decoder_config, x);
+            std.debug.assert(decoder_init_result == miniaudio.MA_SUCCESS);
+            break :blk x;
+        };
+
+        const sample_count = blk: {
+            var x: miniaudio.ma_uint64 = undefined;
+            _ = miniaudio.ma_decoder_get_length_in_pcm_frames(decoder, &x);
+            break :blk x * AudioIO.channels;
+        };
+
+        const samples: []AudioIO.SampleT = try allocator.alloc(AudioIO.SampleT, sample_count);
+
+        // NOTE: possibly needs some "buffer" decoded in blocking mode,
+        // in case callback arrives before thread spawns and starts
+        // decoding samples.
+
+        // TODO: some kind of messaging about validity of sample buffer.
+        // right now freeing it while decoding still going on is guaranteed segfault.
+        // is this even possible? we are decoding all samples at once,
+        // and not in power to stop it once it starts.
+        // maybe better way to do this will be to include a "finished" flag in a struct,
+        // then we can block until decoding finishes on free (might be wasteful).
+        // maybe both, with chunking of samples on spawned thread.
+        // that way we can stop decoding sooner, but that will require two-way
+        // communication with spawned thread.
+
+        const thread = try std.Thread.spawn(.{}, maDecodeFreeEncodedAndDecoder, .{ allocator, samples, bytes, decoder });
+        thread.detach();
+
+        return .{
+            .samples = samples,
+        };
+
+    }
+
+    pub fn free(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.samples);
+    }
+
+    pub inline fn sampleCount(self: *const @This()) usize {
+        return self.samples.len;
+    }
+
+    pub fn sumToBuffer(self: *const @This(), offset: usize, buffer: []AudioIO.SampleT, channel_multipliers: [AudioIO.channels]AudioIO.SampleT) usize {
+
+        const samples_left = @min(buffer.len, self.samples.len - offset);
+        for (0..samples_left) | i | {
+            buffer[i] += self.samples[offset+i] * channel_multipliers[i%channel_multipliers.len];
+        }
+
+        return samples_left;
+
+    }
+
+};
+
+pub const AudioSourceStreamedMiniaudio = struct {
 
     decoder: miniaudio.ma_decoder,
     sample_count: miniaudio.ma_uint64,
@@ -271,96 +384,8 @@ pub const AudioSourceStreamedFromDiskMiniaudio = struct {
         _ = miniaudio.ma_decoder_uninit(&self.decoder);
     }
 
-    pub fn sumToBuffer(self: *@This(), offset: usize, buffer: []AudioIO.SampleT, channel_multipliers: [AudioIO.channels]AudioIO.SampleT) usize {
-        return maDecoderSumToBuffer(&self.decoder, self.sample_count, offset, buffer, channel_multipliers);
-    }
-
-};
-
-pub const AudioSourceStreamedFromMemory = union(enum) {
-
-    miniaudio: AudioSourceStreamedFromMemoryMiniaudio,
-
-    pub fn maFromPathRelToExeAlloc(allocator: std.mem.Allocator, path: []const u8) !@This() {
-        return .{ .miniaudio = try AudioSourceStreamedFromMemoryMiniaudio.fromPathRelToExeAlloc(allocator, path) };
-    }
-
-    pub fn free(self: *@This(), allocator: std.mem.Allocator) void {
-        switch (self.*) {
-            .miniaudio => self.miniaudio.free(allocator),
-        }
-    }
-
-    pub fn sumToBuffer(self: *@This(), offset: usize, buffer: []AudioIO.SampleT, channel_multipliers: [AudioIO.channels]AudioIO.SampleT) usize {
-        return switch (self.*) {
-            .miniaudio => self.miniaudio.sumToBuffer(offset, buffer, channel_multipliers),
-        };
-    }
-};
-
-pub const AudioSourceStreamedFromMemoryMiniaudio = struct {
-
-    encoded: []const u8,
-    decoder: miniaudio.ma_decoder,
-    sample_count: miniaudio.ma_uint64,
-
-    pub fn fromPathRelToExeAlloc(allocator: std.mem.Allocator, path: []const u8) !@This() {
-
-        const exe_dir_path = try std.fs.selfExeDirPathAlloc(allocator);
-        defer allocator.free(exe_dir_path);
-        var exe_dir = try std.fs.openDirAbsolute(exe_dir_path, .{});
-        defer exe_dir.close();
-
-        const abs_path = try exe_dir.realpathAlloc(allocator, path);
-        defer allocator.free(abs_path);
-
-        return try fromAbsPathAlloc(allocator, abs_path);
-
-    }
-
-    pub fn fromAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8) !@This() {
-
-        const file = try std.fs.openFileAbsolute(path, .{});
-        defer file.close();
-
-        return try fromFileAlloc(allocator, file);
-
-    }
-
-    pub fn fromFileAlloc(allocator: std.mem.Allocator, file: std.fs.File) !@This() {
-
-        const bytes = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
-
-        return try fromMem(bytes);
-
-    }
-
-    pub fn fromMem(bytes: []const u8) !@This() {
-
-        const decoder_config = miniaudio.ma_decoder_config_init(AudioIO.format, AudioIO.channels, AudioIO.sample_rate);
-
-        var decoder = blk: {
-            var x: miniaudio.ma_decoder = undefined;
-            const decoder_init_result = miniaudio.ma_decoder_init_memory(bytes.ptr, @intCast(bytes.len), &decoder_config, &x);
-            std.debug.assert(decoder_init_result == miniaudio.MA_SUCCESS);
-            break :blk x;
-        };
-
-        return .{
-            .encoded = bytes,
-            .decoder = decoder,
-            .sample_count = blk: {
-                var x: miniaudio.ma_uint64 = undefined;
-                _ = miniaudio.ma_decoder_get_length_in_pcm_frames(&decoder, &x);
-                break :blk x * AudioIO.channels;
-            }
-        };
-
-    }
-
-    pub fn free(self: *@This(), allocator: std.mem.Allocator) void {
-        _ = miniaudio.ma_decoder_uninit(&self.decoder);
-        allocator.free(self.encoded);
+    pub inline fn sampleCount(self: *const @This()) usize {
+        return self.sample_count;
     }
 
     pub fn sumToBuffer(self: *@This(), offset: usize, buffer: []AudioIO.SampleT, channel_multipliers: [AudioIO.channels]AudioIO.SampleT) usize {
@@ -369,93 +394,12 @@ pub const AudioSourceStreamedFromMemoryMiniaudio = struct {
 
 };
 
-pub const AudioSourceDecodedThreaded = struct {
-
-    samples: []const AudioIO.SampleT,
-
-    pub fn maFromPathRelToExeAlloc(allocator: std.mem.Allocator, path: []const u8) !@This() {
-
-        const exe_dir_path = try std.fs.selfExeDirPathAlloc(allocator);
-        defer allocator.free(exe_dir_path);
-        var exe_dir = try std.fs.openDirAbsolute(exe_dir_path, .{});
-        defer exe_dir.close();
-
-        const abs_path = try exe_dir.realpathAlloc(allocator, path);
-        defer allocator.free(abs_path);
-
-        return try maFromAbsPathAlloc(allocator, abs_path);
-
-    }
-
-    pub fn maFromAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8) !@This() {
-
-        const file = try std.fs.openFileAbsolute(path, .{});
-        defer file.close();
-
-        return try maFromFileAlloc(allocator, file);
-
-    }
-
-    pub fn maFromFileAlloc(allocator: std.mem.Allocator, file: std.fs.File) !@This() {
-
-        const bytes = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
-
-        return try maFromMemAlloc(allocator, bytes);
-
-    }
-
-    pub fn maFromMemAlloc(allocator: std.mem.Allocator, bytes: []const u8) !@This() {
-
-        const decoder_config = miniaudio.ma_decoder_config_init(AudioIO.format, AudioIO.channels, AudioIO.sample_rate);
-
-
-        const decoder = blk: {
-            const x = try allocator.create(miniaudio.ma_decoder);
-            const decoder_init_result = miniaudio.ma_decoder_init_memory(bytes.ptr, @intCast(bytes.len), &decoder_config, x);
-            std.debug.assert(decoder_init_result == miniaudio.MA_SUCCESS);
-            break :blk x;
-        };
-
-        const sample_count = blk: {
-            var x: miniaudio.ma_uint64 = undefined;
-            _ = miniaudio.ma_decoder_get_length_in_pcm_frames(decoder, &x);
-            break :blk x * AudioIO.channels;
-        };
-
-        const samples: []AudioIO.SampleT = try allocator.alloc(AudioIO.SampleT, sample_count);
-
-        const thread = try std.Thread.spawn(.{}, maDecodeFreeEncoded, .{ allocator, samples, bytes, decoder });
-        thread.detach();
-
-        return .{
-            .samples = samples,
-        };
-
-    }
-
-    pub fn free(self: *@This(), allocator: std.mem.Allocator) void {
-        allocator.free(self.samples);
-    }
-
-    pub fn sumToBuffer(self: *const @This(), offset: usize, buffer: []AudioIO.SampleT, channel_multipliers: [AudioIO.channels]AudioIO.SampleT) usize {
-
-        const samples_left = @min(buffer.len, self.samples.len - offset);
-        for (0..samples_left) | i | {
-            buffer[i] += self.samples[offset+i] * channel_multipliers[i%channel_multipliers.len];
-        }
-
-        return samples_left;
-
-    }
-
-};
-
-fn maDecodeFreeEncoded(allocator: std.mem.Allocator, out_buffer: []AudioIO.SampleT, in_bytes: []const u8, decoder: *miniaudio.ma_decoder) void {
+fn maDecodeFreeEncodedAndDecoder(allocator: std.mem.Allocator, out_buffer: []AudioIO.SampleT, in_bytes: []const u8, decoder: *miniaudio.ma_decoder) void {
 
     var frames_read: usize = undefined;
     _ = miniaudio.ma_decoder_read_pcm_frames(decoder, @ptrCast(out_buffer), out_buffer.len/AudioIO.channels, &frames_read);
 
-    std.debug.print("background decode finished\n", .{});
+    std.debug.assert(frames_read*AudioIO.channels == out_buffer.len);
 
     _ = miniaudio.ma_decoder_uninit(decoder);
     allocator.free(in_bytes);

@@ -256,6 +256,7 @@ pub const AudioSourceStreamedFromDisk = union(enum) {
 pub const AudioSourceNonBlocking = struct {
 
     samples: []const AudioIO.SampleT,
+    mutex: *std.Thread.Mutex,
 
     pub fn maFromPathRelToExeAlloc(allocator: std.mem.Allocator, path: []const u8) !@This() {
 
@@ -326,17 +327,23 @@ pub const AudioSourceNonBlocking = struct {
         // that way we can stop decoding sooner, but that will require two-way
         // communication with spawned thread.
 
-        const thread = try std.Thread.spawn(.{}, maDecodeThenFreeEncodedAndDecoder, .{ allocator, samples, bytes, decoder });
+        const mutex = try allocator.create(std.Thread.Mutex);
+
+        const thread = try std.Thread.spawn(.{}, maDecodeThenFreeEncodedAndDecoder, .{ allocator, samples, bytes, decoder, mutex });
         thread.detach();
 
         return .{
             .samples = samples,
+            .mutex = mutex,
         };
 
     }
 
     pub fn free(self: *@This(), allocator: std.mem.Allocator) void {
+        self.mutex.lock();
         allocator.free(self.samples);
+        self.mutex.unlock();
+        allocator.destroy(self.mutex);
     }
 
     pub inline fn sampleCount(self: *const @This()) usize {
@@ -551,10 +558,13 @@ pub const AudioSourceStreamedFromMemoryMiniaudio = struct {
 
 };
 
-fn maDecodeThenFreeEncodedAndDecoder(allocator: std.mem.Allocator, out_buffer: []AudioIO.SampleT, in_bytes: []const u8, decoder: *miniaudio.ma_decoder) void {
+fn maDecodeThenFreeEncodedAndDecoder(allocator: std.mem.Allocator, out_buffer: []AudioIO.SampleT, in_bytes: []const u8, decoder: *miniaudio.ma_decoder, mutex: *std.Thread.Mutex) void {
 
     var frames_read: usize = undefined;
+
+    mutex.lock();
     _ = miniaudio.ma_decoder_read_pcm_frames(decoder, @ptrCast(out_buffer), out_buffer.len/AudioIO.channels, &frames_read);
+    mutex.unlock();
 
     std.debug.assert(frames_read*AudioIO.channels == out_buffer.len);
 

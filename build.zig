@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) !void {
     // --------------------------------
 
     const module = b.addModule("ki", .{
-        .root_source_file = .{ .path = "src/ki.zig" },
+        .root_source_file = b.path("src/ki.zig"),
     });
 
     // --------------------------------
@@ -15,7 +15,7 @@ pub fn build(b: *std.Build) !void {
 
     const lib = b.addStaticLibrary(.{
         .name               = "ki",
-        .root_source_file   = .{ .path = "src/ki.zig" },
+        .root_source_file   = b.path("src/ki.zig"),
         .target             = target,
         .optimize           = optimize,
     });
@@ -87,7 +87,7 @@ pub fn build(b: *std.Build) !void {
     // --------------------------------
 
     const main_tests = b.addTest(.{
-        .root_source_file   = .{ .path = "src/ki.zig" },
+        .root_source_file   = b.path("src/ki.zig"),
         .target             = target,
         .optimize           = optimize,
     });

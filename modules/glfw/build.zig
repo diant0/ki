@@ -32,21 +32,21 @@ pub fn build(b: *std.Build) !void {
     // --------------------------------
     
     const module = b.addModule("glfw", .{
-        .root_source_file = .{ .path = "src/glfw.zig" },
+        .root_source_file = b.path("src/glfw.zig"),
     });
 
-    module.addIncludePath(.{ .path = repo_path ++ "/include" });
+    module.addIncludePath(b.path(repo_path ++ "/include"));
 
     switch (target.result.os.tag) {
 
         .linux => {
 
-            module.addIncludePath(.{ .path = "/usr/include" });
+            module.addIncludePath(.{ .cwd_relative = "/usr/include" });
 
             if (build_platform_wayland) {
                 const generated_wayland_headers_path = try b.cache_root.handle.realpathAlloc(b.allocator, cache_subpath);
                 defer b.allocator.free(generated_wayland_headers_path);
-                module.addIncludePath(.{ .path = generated_wayland_headers_path });
+                module.addIncludePath(.{ .cwd_relative = generated_wayland_headers_path });
             }
         
         },
@@ -69,12 +69,12 @@ pub fn build(b: *std.Build) !void {
 
         .linux => {
 
-            lib.addIncludePath(.{ .path = "/usr/include" });
+            lib.addIncludePath(.{ .cwd_relative = "/usr/include" });
 
             if (build_platform_wayland) {
                 const generated_wayland_headers_path = try b.cache_root.handle.realpathAlloc(b.allocator, cache_subpath);
                 defer b.allocator.free(generated_wayland_headers_path);
-                lib.addIncludePath(.{ .path = generated_wayland_headers_path });
+                lib.addIncludePath(.{ .cwd_relative = generated_wayland_headers_path });
             }
         
         },
@@ -92,7 +92,7 @@ pub fn build(b: *std.Build) !void {
     try c_src.appendSlice(c_src_common);
     try c_src.appendSlice(c_src_platform_null);
 
-    lib.addIncludePath(.{ .path = repo_path ++ "/include" });
+    lib.addIncludePath(b.path(repo_path ++ "/include"));
 
     switch (target.result.os.tag) {
 

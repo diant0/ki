@@ -23,17 +23,17 @@ pub fn build(b: *std.Build) !void {
     // --------------------------------
     
     const module = b.addModule("stb", .{
-        .root_source_file = .{ .path = "src/stb.zig" },
+        .root_source_file = b.path("src/stb.zig"),
     });
 
     module.addOptions("config", config);
-    module.addIncludePath(.{ .path = repo_path });
+    module.addIncludePath(b.path(repo_path));
 
     // --------------------------------
 
     const lib = b.addStaticLibrary(.{
         .name               = "stb",
-        .root_source_file   = .{ .path = "src/stb.zig" },
+        .root_source_file   = b.path("src/stb.zig"),
         .target             = target,
         .optimize           = optimize,
     });
@@ -41,7 +41,7 @@ pub fn build(b: *std.Build) !void {
     lib.root_module.addOptions("config", config);
 
     lib.linkLibC();
-    lib.addIncludePath(.{ .path = repo_path });
+    lib.addIncludePath(b.path(repo_path));
 
     const cache_subpath = "stb";
 
@@ -91,7 +91,7 @@ fn addGeneratedImpl(compile: *std.Build.Step.Compile, cache_subpath: []const u8,
     defer b.allocator.free(impl_file_abspath);
 
     compile.addCSourceFile(.{
-        .file = .{ .path = impl_file_abspath },
+        .file = .{ .cwd_relative = impl_file_abspath },
         .flags = &[_][]const u8 {},
     });
 

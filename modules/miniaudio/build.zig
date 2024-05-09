@@ -11,22 +11,22 @@ pub fn build(b: *std.Build) !void {
 
 
     const module = b.addModule("miniaudio", .{
-        .root_source_file = .{ .path = "src/miniaudio.zig" },
+        .root_source_file = b.path("src/miniaudio.zig"),
     });
 
-    module.addIncludePath(.{ .path = repo_path });
+    module.addIncludePath(b.path(repo_path));
 
     // --------------------------------
 
     const lib = b.addStaticLibrary(.{
         .name               = "miniaudio",
-        .root_source_file   = .{ .path = "src/miniaudio.zig" },
+        .root_source_file   = b.path("src/miniaudio.zig"),
         .target             = target,
         .optimize           = optimize,
     });
 
     lib.linkLibC();
-    lib.addIncludePath(.{ .path = repo_path });
+    lib.addIncludePath(b.path(repo_path));
 
     try addGeneratedImpl(lib, "miniaudio", "miniaudio.c", "miniaudio.h", "MINIAUDIO_IMPLEMENTATION");
 
@@ -64,7 +64,7 @@ fn addGeneratedImpl(compile: *std.Build.Step.Compile, cache_subpath: []const u8,
     defer b.allocator.free(impl_file_abspath);
 
     compile.addCSourceFile(.{
-        .file = .{ .path = impl_file_abspath },
+        .file = .{ .cwd_relative = impl_file_abspath },
         .flags = &[_][]const u8 {},
     });
 

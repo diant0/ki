@@ -10,21 +10,21 @@ pub fn build(b: *std.Build) !void {
     // --------------------------------
 
     const module = b.addModule("glad", .{
-        .root_source_file = .{ .path = "src/glad.zig" },
+        .root_source_file = b.path("src/glad.zig"),
     });
-    module.addIncludePath(.{ .path = "glad" });
+    module.addIncludePath(b.path("glad"));
 
     // --------------------------------
 
     const lib = b.addStaticLibrary(.{
         .name               = "glad",
-        .root_source_file   = .{ .path = "src/glad.zig" },
+        .root_source_file   = b.path("src/glad.zig"),
         .target             = target,
         .optimize           = optimize,
     });
 
     lib.linkLibC();
-    lib.addIncludePath(.{ .path = "glad" });
+    lib.addIncludePath(b.path("glad"));
 
     try addGeneratedImpl(lib, "glad", "glad.c", "glad.h", "GLAD_GL_IMPLEMENTATION");
 
@@ -60,7 +60,7 @@ fn addGeneratedImpl(compile: *std.Build.Step.Compile, cache_subpath: []const u8,
     defer b.allocator.free(impl_file_abspath);
 
     compile.addCSourceFile(.{
-        .file = .{ .path = impl_file_abspath },
+        .file = .{ .cwd_relative = impl_file_abspath },
         .flags = &[_][]const u8 {},
     });
 

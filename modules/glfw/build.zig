@@ -161,7 +161,7 @@ fn generateWaylandHeaders(b: *std.Build) !void {
         const client_header_path = try std.fmt.bufPrint(&output_file_path_buf, "{s}/{s}/{s}-client-protocol.h",
             .{ cache_dir_path, cache_subpath, protocol_name });
 
-        const genereted_client_header_file = generated_code_dir.openFile(client_header_path, .{}) catch | e | blk: {
+        generated_code_dir.access(client_header_path, .{}) catch | e | {
 
             if (e == error.FileNotFound) {
 
@@ -180,15 +180,12 @@ fn generateWaylandHeaders(b: *std.Build) !void {
 
             }
 
-            break :blk try generated_code_dir.openFile(client_header_path, .{});
-
         };
-        genereted_client_header_file.close();
 
         const private_code_path = try std.fmt.bufPrint(&output_file_path_buf, "{s}/{s}/{s}-client-protocol-code.h",
             .{ b.cache_root.path.?, cache_subpath, protocol_name });
 
-        const genereted_private_code_file = generated_code_dir.openFile(private_code_path, .{}) catch | e | blk: {
+        generated_code_dir.access(private_code_path, .{}) catch | e | {
 
             if (e == error.FileNotFound) {
 
@@ -207,10 +204,8 @@ fn generateWaylandHeaders(b: *std.Build) !void {
 
             }
 
-            break :blk try generated_code_dir.openFile(private_code_path, .{});
-
         };
-        genereted_private_code_file.close();
+
     }
 
 }

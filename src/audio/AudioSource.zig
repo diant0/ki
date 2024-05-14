@@ -1,14 +1,15 @@
 const std = @import("std");
-const AudioIO = @import("AudioIO.zig").AudioIO;
-const miniaudio = @import("miniaudio");
-const AudioPlayer = @import("AudioPlayer.zig").AudioPlayer;
 const DynArr = @import("../DynArr.zig").DynArr;
+const miniaudio = @import("miniaudio");
+const AudioIO = @import("AudioIO.zig").AudioIO;
+const AudioPlayer = @import("AudioPlayer.zig").AudioPlayer;
 
 // NOTE: with miniaudio, passing ma_decoder by value produces a lot of
 // unpredictable failures, so allocating it on heap is pretty much required
 
+/// TODO: blocking/nonblocking strategies need better names.
 pub const DecodingStrategy = enum {
-    blocking, nonblocking, streamed_from_disk, streamed_from_memory,
+    blocking, nonblocking, stream_from_disk, stream_from_memory,
 };
 
 pub const AudioSource = union(DecodingStrategy) {
@@ -30,86 +31,78 @@ pub const AudioSource = union(DecodingStrategy) {
     blocking: AudioSourceBlocking,
 
     /// decodes in a separate thread.
-    /// setback is freeing sample buffer while decoding still going on will result in segfault.
+    /// freeing is only possible once decoding finishes
     nonblocking: AudioSourceNonBlocking,
-
-    // TODO?: fold blocking and nonblocking into one with it always decoding in a separate thread,
-    // but expose a procedure that will block until decoding is finished.
-    // might not be desirable when overhead of spawning a thread is significant.
 
     /// streams directly from disk.
     /// sebacks are not being able to use this strategy from memory and not being able to play more
     /// than one instance of such audio source.
-    streamed_from_disk: AudioSourceStreamedFromDisk,
+    stream_from_disk: AudioSourceStreamFromDisk,
 
     // streams from memory. can be used with zig's file io.
-    // compromise between streaming and non-blocking decoding.
     // might be useful if disk is slow.
-    streamed_from_memory: AudioSourceStreamedFromMemory,
-
-    // TODO?: streaming from memory
-    // might be useful when memory footprint is an issue and situation requires zig's file io.
+    stream_from_memory: AudioSourceStreamFromMemory,
 
     pub fn maFromPathRelToExeAlloc(allocator: std.mem.Allocator, path: []const u8, decoding_strategy: DecodingStrategy) !@This() {
         return switch (decoding_strategy) {
-            .blocking             => .{ .blocking             = try AudioSourceBlocking.maFromPathRelToExeAlloc(allocator, path), },
-            .nonblocking          => .{ .nonblocking          = try AudioSourceNonBlocking.maFromPathRelToExeAlloc(allocator, path), },
-            .streamed_from_disk   => .{ .streamed_from_disk   = try AudioSourceStreamedFromDisk.maFromPathRelToExeAlloc(allocator, path), },
-            .streamed_from_memory => .{ .streamed_from_memory = try AudioSourceStreamedFromMemory.maFromPathRelToExeAlloc(allocator, path), },
+            .blocking           => .{ .blocking           = try AudioSourceBlocking.maFromPathRelToExeAlloc(allocator, path), },
+            .nonblocking        => .{ .nonblocking        = try AudioSourceNonBlocking.maFromPathRelToExeAlloc(allocator, path), },
+            .stream_from_disk   => .{ .stream_from_disk   = try AudioSourceStreamFromDisk.maFromPathRelToExeAlloc(allocator, path), },
+            .stream_from_memory => .{ .stream_from_memory = try AudioSourceStreamFromMemory.maFromPathRelToExeAlloc(allocator, path), },
         };
     }
 
     pub fn maFromAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8, decoding_strategy: DecodingStrategy) !@This() {
         return switch (decoding_strategy) {
-            .blocking             => .{ .blocking             = try AudioSourceBlocking.maFromAbsPathAlloc(allocator, path), },
-            .nonblocking          => .{ .nonblocking          = try AudioSourceNonBlocking.maFromAbsPathAlloc(allocator, path), },
-            .streamed_from_disk   => .{ .streamed_from_disk   = try AudioSourceStreamedFromDisk.maFromAbsPathAlloc(allocator, path), },
-            .streamed_from_memory => .{ .streamed_from_memory = try AudioSourceStreamedFromMemory.maFromAbsPathAlloc(allocator, path), },
+            .blocking           => .{ .blocking           = try AudioSourceBlocking.maFromAbsPathAlloc(allocator, path), },
+            .nonblocking        => .{ .nonblocking        = try AudioSourceNonBlocking.maFromAbsPathAlloc(allocator, path), },
+            .stream_from_disk   => .{ .stream_from_disk   = try AudioSourceStreamFromDisk.maFromAbsPathAlloc(allocator, path), },
+            .stream_from_memory => .{ .stream_from_memory = try AudioSourceStreamFromMemory.maFromAbsPathAlloc(allocator, path), },
         };
     }
 
     pub fn maFromFileAlloc(allocator: std.mem.Allocator, file: std.fs.File, decoding_strategy: DecodingStrategy) !@This() {
         return switch (decoding_strategy) {
-            .blocking             => .{ .blocking             = try AudioSourceBlocking.maFromFileAlloc(allocator, file), },
-            .nonblocking          => .{ .nonblocking          = try AudioSourceNonBlocking.maFromFileAlloc(allocator, file), },
-            .streamed_from_disk   => return error.StreamingAudioNotAvailableWithZigFileIO,
-            .streamed_from_memory => .{ .streamed_from_memory = try AudioSourceStreamedFromMemory.maFromFileAlloc(allocator, file), },
+            .blocking           => .{ .blocking           = try AudioSourceBlocking.maFromFileAlloc(allocator, file), },
+            .nonblocking        => .{ .nonblocking        = try AudioSourceNonBlocking.maFromFileAlloc(allocator, file), },
+            .stream_from_disk   => return error.StreamingAudioNotAvailableWithZigFileIO,
+            .stream_from_memory => .{ .stream_from_memory = try AudioSourceStreamFromMemory.maFromFileAlloc(allocator, file), },
         };
     }
 
     pub fn maFromMemAlloc(allocator: std.mem.Allocator, bytes: []const u8, decoding_strategy: DecodingStrategy) !@This() {
         return switch (decoding_strategy) {
-            .blocking             => .{ .blocking             = try AudioSourceBlocking.maFromMemAlloc(allocator, bytes), },
-            .nonblocking          => .{ .nonblocking          = try AudioSourceNonBlocking.maFromMemAlloc(allocator, bytes), },
-            .streamed_from_disk   => return error.StreamingAudioNotAvailableFromMemory,
-            .streamed_from_memory => .{ .streamed_from_memory = try AudioSourceStreamedFromMemory.maFromMem(allocator, bytes), },
+            .blocking           => .{ .blocking           = try AudioSourceBlocking.maFromMemAlloc(allocator, bytes), },
+            .nonblocking        => .{ .nonblocking        = try AudioSourceNonBlocking.maFromMemAlloc(allocator, bytes), },
+            .stream_from_disk   => return error.StreamingAudioNotAvailableFromMemory,
+            .stream_from_memory => .{ .stream_from_memory = try AudioSourceStreamFromMemory.maFromMemAlloc(allocator, bytes), },
         };
     }
 
     pub fn free(self: *@This(), allocator: std.mem.Allocator) void {
         switch (self.*) {
-            .blocking             => self.blocking.free(allocator),
-            .nonblocking          => self.nonblocking.free(allocator),
-            .streamed_from_disk   => self.streamed_from_disk.free(allocator),
-            .streamed_from_memory => self.streamed_from_memory.free(allocator),
+            .blocking           => self.blocking.free(allocator),
+            .nonblocking        => self.nonblocking.free(allocator),
+            .stream_from_disk   => self.stream_from_disk.free(allocator),
+            .stream_from_memory => self.stream_from_memory.free(allocator),
         }
     }
 
     pub fn sumToBuffer(self: *@This(), offset: usize, buffer: []AudioIO.SampleT, channel_multipliers: [AudioIO.channels]AudioIO.SampleT) usize {
         return switch (self.*) {
-            .blocking             => self.blocking.sumToBuffer(offset, buffer, channel_multipliers),
-            .nonblocking          => self.nonblocking.sumToBuffer(offset, buffer, channel_multipliers),
-            .streamed_from_disk   => self.streamed_from_disk.sumToBuffer(offset, buffer, channel_multipliers),
-            .streamed_from_memory => self.streamed_from_memory.sumToBuffer(offset, buffer, channel_multipliers),
+            .blocking           => self.blocking.sumToBuffer(offset, buffer, channel_multipliers),
+            .nonblocking        => self.nonblocking.sumToBuffer(offset, buffer, channel_multipliers),
+            .stream_from_disk   => self.stream_from_disk.sumToBuffer(offset, buffer, channel_multipliers),
+            .stream_from_memory => self.stream_from_memory.sumToBuffer(offset, buffer, channel_multipliers),
         };
     }
 
     pub inline fn sampleCount(self: *const @This()) usize {
         return switch(self.*) {
-            .blocking             => self.blocking.sampleCount(),
-            .nonblocking          => self.nonblocking.sampleCount(),
-            .streamed_from_disk   => self.streamed_from_disk.sampleCount(),
-            .streamed_from_memory => self.streamed_from_memory.sampleCount(),
+            .blocking           => self.blocking.sampleCount(),
+            .nonblocking        => self.nonblocking.sampleCount(),
+            .stream_from_disk   => self.stream_from_disk.sampleCount(),
+            .stream_from_memory => self.stream_from_memory.sampleCount(),
         };
     }
 
@@ -157,8 +150,8 @@ pub const AudioSourceBlocking = struct {
 
         var decoder = blk: {
             var x: miniaudio.ma_decoder = undefined;
-            const decoder_init_result = miniaudio.ma_decoder_init_memory(bytes.ptr, @intCast(bytes.len), &decoder_config, &x);
-            if (decoder_init_result != miniaudio.MA_SUCCESS) {
+            const result = miniaudio.ma_decoder_init_memory(bytes.ptr, @intCast(bytes.len), &decoder_config, &x);
+            if (result != miniaudio.MA_SUCCESS) {
                 return error.MiniaudioDecoderInitFailed;
             }
             break :blk x;
@@ -166,8 +159,8 @@ pub const AudioSourceBlocking = struct {
 
         const pcm_frame_count = blk: {
             var x: miniaudio.ma_uint64 = undefined;
-            const decoder_get_length_result = miniaudio.ma_decoder_get_length_in_pcm_frames(&decoder, &x);
-            if (decoder_get_length_result != miniaudio.MA_SUCCESS) {
+            const result = miniaudio.ma_decoder_get_length_in_pcm_frames(&decoder, &x);
+            if (result != miniaudio.MA_SUCCESS) {
                 return error.MiniaudioDecoderGetLengthFailed;
             }            
             break :blk x;
@@ -177,9 +170,9 @@ pub const AudioSourceBlocking = struct {
 
         const pcm_frames_read = blk: {
             var x: miniaudio.ma_uint64 = undefined;
-            const decoder_read_pcm_frames_result = miniaudio.ma_decoder_read_pcm_frames(&decoder, decoded.ptr, pcm_frame_count, &x);
-            if (decoder_read_pcm_frames_result != miniaudio.MA_SUCCESS) {
-                return error.MiniaudioDecoderGetLengthFailed;
+            const result = miniaudio.ma_decoder_read_pcm_frames(&decoder, decoded.ptr, pcm_frame_count, &x);
+            if (result != miniaudio.MA_SUCCESS) {
+                return error.MiniaudioReadFramesFailed;
             }
             break :blk x;
         };
@@ -217,7 +210,7 @@ pub const AudioSourceBlocking = struct {
 
 };
 
-pub const AudioSourceStreamedFromDisk = union(enum) {
+pub const AudioSourceStreamFromDisk = union(enum) {
 
     miniaudio: AudioSourceStreamedFromDiskMiniaudio,
 
@@ -295,8 +288,8 @@ pub const AudioSourceNonBlocking = struct {
 
         const decoder = blk: {
             const x = try allocator.create(miniaudio.ma_decoder);
-            const decoder_init_result = miniaudio.ma_decoder_init_memory(bytes.ptr, @intCast(bytes.len), &decoder_config, x);
-            if (decoder_init_result != miniaudio.MA_SUCCESS) {
+            const result = miniaudio.ma_decoder_init_memory(bytes.ptr, @intCast(bytes.len), &decoder_config, x);
+            if (result != miniaudio.MA_SUCCESS) {
                 return error.MiniaudioDecoderInitFailed;
             }
             break :blk x;
@@ -304,8 +297,8 @@ pub const AudioSourceNonBlocking = struct {
 
         const sample_count = blk: {
             var x: miniaudio.ma_uint64 = undefined;
-            const decoder_get_frame_count_result = miniaudio.ma_decoder_get_length_in_pcm_frames(decoder, &x);
-            if (decoder_get_frame_count_result != miniaudio.MA_SUCCESS) {
+            const result = miniaudio.ma_decoder_get_length_in_pcm_frames(decoder, &x);
+            if (result != miniaudio.MA_SUCCESS) {
                 return error.MiniaudioDecoderGetLengthFailed;
             }
             break :blk x * AudioIO.channels;
@@ -404,7 +397,10 @@ pub const AudioSourceStreamedFromDiskMiniaudio = struct {
 
         const sample_count = blk: {
             var x: miniaudio.ma_uint64 = undefined;
-            _ = miniaudio.ma_decoder_get_length_in_pcm_frames(decoder, &x);
+            const result = miniaudio.ma_decoder_get_length_in_pcm_frames(decoder, &x);
+            if (result != miniaudio.MA_SUCCESS) {
+                return error.MiniaudioDecoderGetLengthFailed;
+            }
             break :blk x * AudioIO.channels;
         };
 
@@ -430,7 +426,7 @@ pub const AudioSourceStreamedFromDiskMiniaudio = struct {
 
 };
 
-pub const AudioSourceStreamedFromMemory = union(enum) {
+pub const AudioSourceStreamFromMemory = union(enum) {
 
     miniaudio: AudioSourceStreamedFromMemoryMiniaudio,
 
@@ -521,16 +517,19 @@ pub const AudioSourceStreamedFromMemoryMiniaudio = struct {
 
         const decoder = blk: {
             const x = try allocator.create(miniaudio.ma_decoder);
-            const decoder_init_result = miniaudio.ma_decoder_init_memory(bytes.ptr, @intCast(bytes.len), &decoder_config, x);
-            if (decoder_init_result != miniaudio.MA_SUCCESS) {
-                return error.DecoderInitFailed;
+            const result = miniaudio.ma_decoder_init_memory(bytes.ptr, @intCast(bytes.len), &decoder_config, x);
+            if (result != miniaudio.MA_SUCCESS) {
+                return error.MiniaudioDecoderInitFailed;
             }
             break :blk x;
         };
 
         const sample_count = blk: {
             var x: miniaudio.ma_uint64 = undefined;
-            _ = miniaudio.ma_decoder_get_length_in_pcm_frames(decoder, &x);
+            const result = miniaudio.ma_decoder_get_length_in_pcm_frames(decoder, &x);
+            if (result != miniaudio.MA_SUCCESS) {
+                return error.MiniaudioDecoderGetLengthFailed;
+            }
             break :blk x * AudioIO.channels;
         };
 

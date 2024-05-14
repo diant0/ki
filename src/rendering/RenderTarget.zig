@@ -103,12 +103,12 @@ pub const RenderTarget = struct {
                 \\
                 \\ in vec2 v_uv;
                 \\
-                \\ uniform sampler2D texture;
+                \\ uniform sampler2D rgba_texture;
                 \\
                 \\ layout(location=0) out vec4 out_col;
                 \\
                 \\ void main() {
-                \\   out_col = texture2D(texture, v_uv);
+                \\   out_col = texture(rgba_texture, v_uv);
                 \\ }
                 ;
 
@@ -141,7 +141,7 @@ pub const RenderTarget = struct {
         gl.glEnableVertexAttribArray(uv_vertex_attrib_location);
         gl.glVertexAttribPointer(uv_vertex_attrib_location, 2, gl.GL_FLOAT, gl.GL_FALSE, @sizeOf(Vertex), @ptrFromInt(@offsetOf(Vertex, "uv")));
 
-        self.rgba_texture_loc = gl.glGetUniformLocation(self.shader_program, "texture");
+        self.rgba_texture_loc = gl.glGetUniformLocation(self.shader_program, "rgba_texture");
         self.transform_loc    = gl.glGetUniformLocation(self.shader_program, "transform");
 
     }

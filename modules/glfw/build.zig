@@ -2,61 +2,55 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
 
-    // --------------------------------
-
-    const target    = b.standardTargetOptions(.{});
-    const optimize  = b.standardOptimizeOption(.{});
-
-    // --------------------------------
+    const build_platform_wayland    = b.option(bool, "wayland",   "build wayland platform") orelse true;
+    const build_platform_x11        = b.option(bool, "x11",       "build x11 platform")     orelse true;
 
     const update_gamepad_mappings_step = b.step("update-gamepad-mappings", "update gamepad mappings");
     update_gamepad_mappings_step.makeFn = updateGamepadMappings;
 
-    // --------------------------------
+    const target    = b.standardTargetOptions(.{});
+    const optimize  = b.standardOptimizeOption(.{});
 
-    const build_platform_wayland    = b.option(bool, "wayland",   "build wayland platform") orelse true;
-    const build_platform_x11        = b.option(bool, "x11",       "build x11 platform")     orelse true;
+    const wayland_headers_path: ?[]const u8 = switch (target.result.os.tag) {
+        .linux => blk: {
+            if (!build_platform_wayland) {
+                break :blk null;
+            }
+            const cache_subpath = "wayland";
+            try generateWaylandHeaders(b, cache_subpath);
+            const x = try b.cache_root.handle.realpathAlloc(b.allocator, "wayland");
+            break :blk x;
+        },
+        else => null,
 
-    if (target.result.os.tag == .linux) {
-    
-        if (!build_platform_x11 and !build_platform_wayland) {
-            return error.NoPlatformForLinuxSelected;
-        }
+    };
+    defer if (wayland_headers_path) | x | {
+        b.allocator.free(x);
+    };
 
-        if (build_platform_wayland) {
-            try generateWaylandHeaders(b);
-        }
-    
-    }
-
-    // --------------------------------
-    
+    // module
     const module = b.addModule("glfw", .{
         .root_source_file = b.path("src/glfw.zig"),
     });
 
-    module.addIncludePath(b.path(repo_path ++ "/include"));
-
+    module.addIncludePath(b.path("glfw/include"));
+    
     switch (target.result.os.tag) {
-
+    
         .linux => {
 
             module.addIncludePath(.{ .cwd_relative = "/usr/include" });
-
-            if (build_platform_wayland) {
-                const generated_wayland_headers_path = try b.cache_root.handle.realpathAlloc(b.allocator, cache_subpath);
-                defer b.allocator.free(generated_wayland_headers_path);
-                module.addIncludePath(.{ .cwd_relative = generated_wayland_headers_path });
+            if (wayland_headers_path) | x | {
+                module.addIncludePath(.{ .cwd_relative = x });
             }
         
         },
 
-        else => return error.UnsupportedOS,
-
+        else => {},
+    
     }
 
-    // --------------------------------
-
+    // lib
     const lib = b.addStaticLibrary(.{
         .name               = "glfw",
         .target             = target,
@@ -64,23 +58,27 @@ pub fn build(b: *std.Build) !void {
     });
 
     lib.linkLibC();
+    lib.addIncludePath(b.path("glfw/include"));
 
     switch (target.result.os.tag) {
-
+    
         .linux => {
 
             lib.addIncludePath(.{ .cwd_relative = "/usr/include" });
-
-            if (build_platform_wayland) {
-                const generated_wayland_headers_path = try b.cache_root.handle.realpathAlloc(b.allocator, cache_subpath);
-                defer b.allocator.free(generated_wayland_headers_path);
-                lib.addIncludePath(.{ .cwd_relative = generated_wayland_headers_path });
+            if (wayland_headers_path) | x | {
+                lib.addIncludePath(.{ .cwd_relative = x });
             }
         
         },
 
-        else => return error.UnsupportedOS,
+        .windows => {
 
+            lib.linkSystemLibrary("gdi32");
+
+        },
+
+        else => {},
+    
     }
 
     var c_src = std.ArrayList([]const u8).init(b.allocator);
@@ -92,7 +90,7 @@ pub fn build(b: *std.Build) !void {
     try c_src.appendSlice(c_src_common);
     try c_src.appendSlice(c_src_platform_null);
 
-    lib.addIncludePath(b.path(repo_path ++ "/include"));
+    lib.addIncludePath(b.path("glfw/include"));
 
     switch (target.result.os.tag) {
 
@@ -112,6 +110,13 @@ pub fn build(b: *std.Build) !void {
 
         },
 
+        .windows => {
+
+            try c_src.appendSlice(c_src_platform_win32);
+            try c_flags.append(c_flag_build_win32);
+
+        },
+
         else => return error.UnsupportedOS,
 
     }
@@ -123,22 +128,20 @@ pub fn build(b: *std.Build) !void {
 
     b.installArtifact(lib);
 
-    // --------------------------------
-
 }
 
-const cache_subpath = "glfw";
+fn generateWaylandHeaders(b: *std.Build, cache_subpath: []const u8) !void {
 
-fn generateWaylandHeaders(b: *std.Build) !void {
+    const access_error = b.cache_root.handle.access(cache_subpath, .{});
+    if (access_error != error.FileNotFound) {
+        return;
+    }
 
-    const cache_dir = b.cache_root.handle;
-    const cache_dir_path = try b.cache_root.handle.realpathAlloc(b.allocator, ".");
+    try b.cache_root.handle.makePath(cache_subpath);
 
     const wayland_scanner_program = try b.findProgram(&.{ "wayland-scanner" }, &.{ "" });
 
-    const generated_code_dir = try cache_dir.makeOpenPath(cache_subpath, .{});
-
-    const protocols_dir_path = try b.build_root.handle.realpathAlloc(b.allocator, repo_path ++ "/deps/wayland");
+    const protocols_dir_path = try b.build_root.handle.realpathAlloc(b.allocator, "glfw/deps/wayland");
     defer b.allocator.free(protocols_dir_path);
     const protocols_dir = try std.fs.openDirAbsolute(protocols_dir_path, .{ .iterate = true });
     var protocols_dir_iterator = protocols_dir.iterate();
@@ -153,58 +156,52 @@ fn generateWaylandHeaders(b: *std.Build) !void {
             } else return error.UnexpectedWaylandProtocolFileFormat;
         };
         
-        const input_file_path = try protocols_dir.realpathAlloc(b.allocator, protocol_filename);
-        defer b.allocator.free(input_file_path);
+        const input_file_abspath = try protocols_dir.realpathAlloc(b.allocator, protocol_filename);
+        defer b.allocator.free(input_file_abspath);
         
         var output_file_path_buf: [4096]u8 = undefined;
 
-        const client_header_path = try std.fmt.bufPrint(&output_file_path_buf, "{s}/{s}/{s}-client-protocol.h",
-            .{ cache_dir_path, cache_subpath, protocol_name });
+        const exit_code_client_header = blk: {
 
-        generated_code_dir.access(client_header_path, .{}) catch | e | {
+            const client_header_abspath = try std.fmt.bufPrint(&output_file_path_buf, "{s}/{s}/{s}-client-protocol.h",
+                .{ b.cache_root.path orelse ".", cache_subpath, protocol_name });
 
-            if (e == error.FileNotFound) {
+            var process = std.ChildProcess.init(&[_][]const u8 {
+                wayland_scanner_program,
+                "client-header",
+                input_file_abspath,
+                client_header_abspath,
+            }, b.allocator);
 
-                var process = std.ChildProcess.init(&[_][]const u8 {
-                    wayland_scanner_program,
-                    "client-header",
-                    input_file_path,
-                    client_header_path,
-                }, b.allocator);
+            const term = try process.spawnAndWait();
 
-                const term = try process.spawnAndWait();
-
-                if (term.Exited != 0) {
-                    return error.WaylandScannerNonZeroExitCode;
-                }
-
-            }
+            break :blk term.Exited;
 
         };
+        if (exit_code_client_header != 0) {
+            return error.CouldNotGenerateWaylandClientHeader;
+        }
 
-        const private_code_path = try std.fmt.bufPrint(&output_file_path_buf, "{s}/{s}/{s}-client-protocol-code.h",
-            .{ b.cache_root.path.?, cache_subpath, protocol_name });
+        const exit_code_private_code = blk: {
 
-        generated_code_dir.access(private_code_path, .{}) catch | e | {
+            const private_code_abspath = try std.fmt.bufPrint(&output_file_path_buf, "{s}/{s}/{s}-client-protocol-code.h",
+                .{ b.cache_root.path.?, cache_subpath, protocol_name });
 
-            if (e == error.FileNotFound) {
+            var process = std.ChildProcess.init(&[_][]const u8 {
+                wayland_scanner_program,
+                "private-code",
+                input_file_abspath,
+                private_code_abspath,
+            }, b.allocator);
 
-                var process = std.ChildProcess.init(&[_][]const u8 {
-                    wayland_scanner_program,
-                    "private-code",
-                    input_file_path,
-                    private_code_path,
-                }, b.allocator);
+            const term = try process.spawnAndWait();
 
-                const term = try process.spawnAndWait();
-
-                if (term.Exited != 0) {
-                    return error.WaylandScannerNonZeroExitCode;
-                }
-
-            }
+            break :blk term.Exited;
 
         };
+        if (exit_code_private_code != 0) {
+            return error.CouldNotGenerateWaylandPrivateCode;
+        }
 
     }
 
@@ -243,8 +240,7 @@ fn updateGamepadMappings(self: *std.Build.Step, _: *std.Progress.Node) !void {
     
 }
 
-const repo_path = "glfw";
-const c_src_path = repo_path ++ "/src";
+const c_src_path = "glfw/src";
 
 pub const c_flag_build_x11     = "-D_GLFW_X11";
 pub const c_flag_build_wayland = "-D_GLFW_WAYLAND";

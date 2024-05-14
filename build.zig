@@ -32,14 +32,14 @@ pub fn build(b: *std.Build) !void {
 
     // --------------------------------
 
-    const glfw_x11     = b.option(bool, "glfw_x11", "")     orelse true;
-    const glfw_wayland = b.option(bool, "glfw_wayland", "") orelse true;
+    const glfw_linux_build_platform_x11     = b.option(bool, "glfw_linux_x11", "")     orelse true;
+    const glfw_linux_build_platform_wayland = b.option(bool, "glfw_linux_wayland", "") orelse true;
 
     const glfw = b.dependency("glfw", .{
-        .target     = target,
-        .optimize   = optimize,
-        .x11        = glfw_x11,
-        .wayland    = glfw_wayland,
+        .target                         = target,
+        .optimize                       = optimize,
+        .linux_build_platform_x11       = glfw_linux_build_platform_x11,
+        .linux_build_platform_wayland   = glfw_linux_build_platform_wayland,
     });
     module.addImport("glfw", glfw.module("glfw"));
     lib.linkLibrary(glfw.artifact("glfw"));

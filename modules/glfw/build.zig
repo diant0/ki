@@ -2,8 +2,8 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
 
-    const build_platform_wayland    = b.option(bool, "wayland",   "build wayland platform") orelse true;
-    const build_platform_x11        = b.option(bool, "x11",       "build x11 platform")     orelse true;
+    const linux_build_platform_wayland    = b.option(bool, "linux_build_platform_wayland",   "build wayland platform") orelse true;
+    const linux_build_platform_x11        = b.option(bool, "linux_build_platform_x11",       "build x11 platform")     orelse true;
 
     const update_gamepad_mappings_step = b.step("update-gamepad-mappings", "update gamepad mappings");
     update_gamepad_mappings_step.makeFn = updateGamepadMappings;
@@ -13,7 +13,7 @@ pub fn build(b: *std.Build) !void {
 
     const wayland_headers_path: ?[]const u8 = switch (target.result.os.tag) {
         .linux => blk: {
-            if (!build_platform_wayland) {
+            if (!linux_build_platform_wayland) {
                 break :blk null;
             }
             const cache_subpath = "wayland";
@@ -98,12 +98,12 @@ pub fn build(b: *std.Build) !void {
             
             try c_src.appendSlice(c_src_platform_linux);
 
-            if (build_platform_x11) {
+            if (linux_build_platform_x11) {
                 try c_src.appendSlice(c_src_platform_x11);
                 try c_flags.append(c_flag_build_x11);
             }
 
-            if (build_platform_wayland) {
+            if (linux_build_platform_wayland) {
                 try c_src.appendSlice(c_src_platform_wayland);
                 try c_flags.append(c_flag_build_wayland);
             }

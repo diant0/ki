@@ -14,7 +14,7 @@ pub const DynArr = @import("DynArr.zig").DynArr;
 
 pub const math  = @import("math");
 
-pub const Time = @import("time/Time.zig").Time;
+pub const Time = @import("Time.zig").Time;
 
 pub const ansi  = @import("ansi.zig");
 pub const utf   = @import("utf.zig");
@@ -24,14 +24,14 @@ pub const Window = @import("Window.zig").Window;
 
 pub const Gamepad       = @import("Gamepad.zig").Gamepad;
 
-pub const Image         = @import("rendering/Image.zig").Image;
-pub const Texture       = @import("rendering/Texture.zig").Texture;
-pub const Font          = @import("rendering/Font.zig").Font;
-pub const SpriteBatch   = @import("rendering/SpriteBatch.zig").SpriteBatch;
-pub const RenderTarget  = @import("rendering/RenderTarget.zig").RenderTarget;
+pub const Image         = @import("Image.zig").Image;
+pub const Texture       = @import("Texture.zig").Texture;
+pub const Font          = @import("Font.zig").Font;
+pub const SpriteBatch   = @import("SpriteBatch.zig").SpriteBatch;
+pub const RenderTarget  = @import("RenderTarget.zig").RenderTarget;
 
-pub const AudioIO       = @import("audio/AudioIO.zig").AudioIO;
-pub const AudioSource   = @import("audio/AudioSource.zig").AudioSource;
+pub const AudioIO       = @import("AudioIO.zig").AudioIO;
+pub const AudioSource   = @import("AudioSource.zig").AudioSource;
 
 pub const log = @import("log.zig");
 

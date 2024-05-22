@@ -1,5 +1,5 @@
 const AudioPlayer = @import("AudioPlayer.zig").AudioPlayer;
-const DynArr = @import("../DynArr.zig").DynArr;
+const DynArr = @import("DynArr.zig").DynArr;
 const std = @import("std");
 const AudioIO = @import("AudioIO.zig").AudioIO;
 const AudioSource = @import("AudioSource.zig").AudioSource;

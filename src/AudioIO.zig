@@ -1,5 +1,5 @@
 const miniaudio = @import("miniaudio");
-const log = @import("../log.zig");
+const log = @import("log.zig");
 const std = @import("std");
 const AudioOutput = @import("AudioOutput.zig").AudioOutput;
 

@@ -1,14 +1,14 @@
 const std = @import("std");
 
 pub const c = struct {
-
-    pub const glfw  = @import("glfw");
-    pub const stb   = @import("stb");
-    pub const qoi   = @import("qoi");
-    pub const glad  = @import("glad");
+    pub const glfw = @import("glfw");
+    pub const stb = @import("stb");
+    pub const qoi = @import("qoi");
+    pub const glad = @import("glad");
     pub const miniaudio = @import("miniaudio");
-
 };
+
+pub const gl = c.glad;
 
 pub const DynArr = @import("DynArr.zig").DynArr;
 
@@ -18,10 +18,9 @@ pub const Time = @import("time/Time.zig").Time;
 
 pub const ansi  = @import("ansi.zig");
 pub const utf   = @import("utf.zig");
-pub const log   = @import("log.zig");
+pub const Log   = @import("Log.zig").Log;
 
 pub const Window = @import("Window.zig").Window;
-pub const gl     = c.glad;
 
 pub const Gamepad       = @import("Gamepad.zig").Gamepad;
 
@@ -34,26 +33,8 @@ pub const RenderTarget  = @import("rendering/RenderTarget.zig").RenderTarget;
 pub const AudioIO       = @import("audio/AudioIO.zig").AudioIO;
 pub const AudioSource   = @import("audio/AudioSource.zig").AudioSource;
 
-pub const Version = struct {
-
-    major: u32,
-    minor: u32,
-    patch: u32,
-
-};
-
-pub fn version() Version {
-
-    return .{
-        .major = 0,
-        .minor = 0,
-        .patch = 0,
-    };
-
-}
+pub const log = @import("log.zig");
 
 test "ki.*" {
-
     _ = ansi;
-
 }

@@ -4,19 +4,19 @@ const std = @import("std");
 const AudioIO = @import("AudioIO.zig").AudioIO;
 const AudioSource = @import("AudioSource.zig").AudioSource;
 
-pub const AudioGroup = struct {
+pub const AudioOutput = struct {
 
     players: DynArr(?AudioPlayer, .{ .auto_shrink_capacity = false }) = .{},
-    subgroups: DynArr(@This(), .{ .auto_shrink_capacity = false }) = .{},
+    children: DynArr(@This(), .{ .auto_shrink_capacity = false }) = .{},
 
     pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator) !void {
         try self.players.init(allocator);
-        try self.subgroups.init(allocator);
+        try self.children.init(allocator);
     }
 
     pub fn free(self: *const @This()) void {
         self.players.free();
-        self.subgroups.free();
+        self.children.free();
     }
 
     const PlayOptions = struct {
@@ -26,7 +26,6 @@ pub const AudioGroup = struct {
         loop: bool = false,
     };
 
-    /// NOTE: playing multiple instances of same .streamed audio sources will cause problems
     pub fn play(self: *@This(), audio: AudioSource, play_options: PlayOptions) !void {
         
         const player: AudioPlayer = .{
@@ -48,8 +47,8 @@ pub const AudioGroup = struct {
 
     pub fn sumToBufferAdvance(self: *@This(), buffer: []AudioIO.SampleT) void {
 
-        for (self.subgroups.items()) | *subgroup | {
-            subgroup.sumToBufferAdvance(buffer);
+        for (self.children.items()) | *child | {
+            child.sumToBufferAdvance(buffer);
         }
 
         for (self.players.items(), 0..) | _, i | {

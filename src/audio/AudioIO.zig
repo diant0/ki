@@ -1,7 +1,7 @@
 const miniaudio = @import("miniaudio");
 const log = @import("../log.zig");
 const std = @import("std");
-const AudioGroup = @import("AudioGroup.zig").AudioGroup;
+const AudioOutput = @import("AudioOutput.zig").AudioOutput;
 
 pub const AudioIO = struct {
 
@@ -12,11 +12,11 @@ pub const AudioIO = struct {
 
     device: miniaudio.ma_device = undefined,
 
-    group: AudioGroup = .{},
+    output: AudioOutput = .{},
     
     pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator) !void {
 
-        try self.group.initAlloc(allocator);
+        try self.output.initAlloc(allocator);
 
         const device_config = blk: {
             var x = miniaudio.ma_device_config_init(miniaudio.ma_device_type_playback);
@@ -41,7 +41,7 @@ pub const AudioIO = struct {
     }
 
     pub fn free(self: *@This()) void {
-        self.group.free();
+        self.output.free();
         _ = miniaudio.ma_device_stop(&self.device);
         miniaudio.ma_device_uninit(&self.device);
     }
@@ -62,6 +62,6 @@ fn audioDataCallback(device: [*c]miniaudio.ma_device, output_opaque: ?*anyopaque
 
     const output: []AudioIO.SampleT = @as([*]AudioIO.SampleT, @ptrCast(@alignCast(output_opaque orelse return)))[0..frame_count*AudioIO.channels];
 
-    audio_io.group.sumToBufferAdvance(output);
+    audio_io.output.sumToBufferAdvance(output);
 
 }

@@ -12,103 +12,100 @@ pub const DecodingStrategy = enum {
     blocking, nonblocking, stream_from_disk, stream_from_memory,
 };
 
-pub const AudioSource = union(DecodingStrategy) {
+// NOTE: blocking and nonblocking decoding strategies will result in pretty
+// high peak memory usage since until decoding finished, we need both
+// encoded bytes and decoded samples in-memory.
+// reason for this is we cannot use ma_decoder with zig's file io.
+// ma_decoder expects either a filepath or a whole file's contents in-memory.
 
-    // NOTE: blocking and nonblocking decoding strategies will result in pretty
-    // high peak memory usage since until decoding finished, we need both
-    // encoded bytes and decoded samples in-memory.
-    // reason for this is we cannot use ma_decoder with zig's file io.
-    // ma_decoder expects either a filepath or a whole file's contents in-memory.
+// TODO: investigate qoa, reference implementation is pretty light, so
+// implementing/adapting it may enable streaming encoded bytes from disk,
+// potentially reducing peak memory usage.
+// however, qoa.h uses c_shorts(i16). should be trivial to map, especially with @Vector,
+// still, its an additional step. speed of decoding might be able to offset this.
 
-    // TODO: investigate qoa, reference implementation is pretty light, so
-    // implementing/adapting it may enable streaming encoded bytes from disk,
-    // potentially reducing peak memory usage.
-    // however, qoa.h uses c_shorts(i16). should be trivial to map, especially with @Vector,
-    // still, its an additional step. speed of decoding might be able to offset this.
+/// simplest one.
+/// setback is you have to wait until audio has been decoded.
+blocking: Blocking,
 
-    /// simplest one.
-    /// setback is you have to wait until audio has been decoded.
-    blocking: AudioSourceBlocking,
+/// decodes in a separate thread.
+/// freeing is only possible once decoding finishes
+nonblocking: AudioSourceNonBlocking,
 
-    /// decodes in a separate thread.
-    /// freeing is only possible once decoding finishes
-    nonblocking: AudioSourceNonBlocking,
+/// streams directly from disk.
+/// sebacks are not being able to use this strategy from memory and not being able to play more
+/// than one instance of such audio source.
+stream_from_disk: AudioSourceStreamFromDisk,
 
-    /// streams directly from disk.
-    /// sebacks are not being able to use this strategy from memory and not being able to play more
-    /// than one instance of such audio source.
-    stream_from_disk: AudioSourceStreamFromDisk,
+// streams from memory. can be used with zig's file io.
+// might be useful if disk is slow.
+stream_from_memory: AudioSourceStreamFromMemory,
 
-    // streams from memory. can be used with zig's file io.
-    // might be useful if disk is slow.
-    stream_from_memory: AudioSourceStreamFromMemory,
+pub fn maFromPathRelToExeAlloc(allocator: std.mem.Allocator, path: []const u8, decoding_strategy: DecodingStrategy) !@This() {
+    return switch (decoding_strategy) {
+        .blocking           => .{ .blocking           = try Blocking.maFromPathRelToExeAlloc(allocator, path), },
+        .nonblocking        => .{ .nonblocking        = try AudioSourceNonBlocking.maFromPathRelToExeAlloc(allocator, path), },
+        .stream_from_disk   => .{ .stream_from_disk   = try AudioSourceStreamFromDisk.maFromPathRelToExeAlloc(allocator, path), },
+        .stream_from_memory => .{ .stream_from_memory = try AudioSourceStreamFromMemory.maFromPathRelToExeAlloc(allocator, path), },
+    };
+}
 
-    pub fn maFromPathRelToExeAlloc(allocator: std.mem.Allocator, path: []const u8, decoding_strategy: DecodingStrategy) !@This() {
-        return switch (decoding_strategy) {
-            .blocking           => .{ .blocking           = try AudioSourceBlocking.maFromPathRelToExeAlloc(allocator, path), },
-            .nonblocking        => .{ .nonblocking        = try AudioSourceNonBlocking.maFromPathRelToExeAlloc(allocator, path), },
-            .stream_from_disk   => .{ .stream_from_disk   = try AudioSourceStreamFromDisk.maFromPathRelToExeAlloc(allocator, path), },
-            .stream_from_memory => .{ .stream_from_memory = try AudioSourceStreamFromMemory.maFromPathRelToExeAlloc(allocator, path), },
-        };
+pub fn maFromAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8, decoding_strategy: DecodingStrategy) !@This() {
+    return switch (decoding_strategy) {
+        .blocking           => .{ .blocking           = try Blocking.maFromAbsPathAlloc(allocator, path), },
+        .nonblocking        => .{ .nonblocking        = try AudioSourceNonBlocking.maFromAbsPathAlloc(allocator, path), },
+        .stream_from_disk   => .{ .stream_from_disk   = try AudioSourceStreamFromDisk.maFromAbsPathAlloc(allocator, path), },
+        .stream_from_memory => .{ .stream_from_memory = try AudioSourceStreamFromMemory.maFromAbsPathAlloc(allocator, path), },
+    };
+}
+
+pub fn maFromFileAlloc(allocator: std.mem.Allocator, file: std.fs.File, decoding_strategy: DecodingStrategy) !@This() {
+    return switch (decoding_strategy) {
+        .blocking           => .{ .blocking           = try Blocking.maFromFileAlloc(allocator, file), },
+        .nonblocking        => .{ .nonblocking        = try AudioSourceNonBlocking.maFromFileAlloc(allocator, file), },
+        .stream_from_disk   => return error.StreamingAudioNotAvailableWithZigFileIO,
+        .stream_from_memory => .{ .stream_from_memory = try AudioSourceStreamFromMemory.maFromFileAlloc(allocator, file), },
+    };
+}
+
+pub fn maFromMemAlloc(allocator: std.mem.Allocator, bytes: []const u8, decoding_strategy: DecodingStrategy) !@This() {
+    return switch (decoding_strategy) {
+        .blocking           => .{ .blocking           = try Blocking.maFromMemAlloc(allocator, bytes), },
+        .nonblocking        => .{ .nonblocking        = try AudioSourceNonBlocking.maFromMemAlloc(allocator, bytes), },
+        .stream_from_disk   => return error.StreamingAudioNotAvailableFromMemory,
+        .stream_from_memory => .{ .stream_from_memory = try AudioSourceStreamFromMemory.maFromMemAlloc(allocator, bytes), },
+    };
+}
+
+pub fn free(self: *@This(), allocator: std.mem.Allocator) void {
+    switch (self.*) {
+        .blocking           => self.blocking.free(allocator),
+        .nonblocking        => self.nonblocking.free(allocator),
+        .stream_from_disk   => self.stream_from_disk.free(allocator),
+        .stream_from_memory => self.stream_from_memory.free(allocator),
     }
+}
 
-    pub fn maFromAbsPathAlloc(allocator: std.mem.Allocator, path: []const u8, decoding_strategy: DecodingStrategy) !@This() {
-        return switch (decoding_strategy) {
-            .blocking           => .{ .blocking           = try AudioSourceBlocking.maFromAbsPathAlloc(allocator, path), },
-            .nonblocking        => .{ .nonblocking        = try AudioSourceNonBlocking.maFromAbsPathAlloc(allocator, path), },
-            .stream_from_disk   => .{ .stream_from_disk   = try AudioSourceStreamFromDisk.maFromAbsPathAlloc(allocator, path), },
-            .stream_from_memory => .{ .stream_from_memory = try AudioSourceStreamFromMemory.maFromAbsPathAlloc(allocator, path), },
-        };
-    }
+pub fn sumToBuffer(self: *@This(), offset: usize, buffer: []AudioIO.SampleT, channel_multipliers: [AudioIO.channels]AudioIO.SampleT) usize {
+    return switch (self.*) {
+        .blocking           => self.blocking.sumToBuffer(offset, buffer, channel_multipliers),
+        .nonblocking        => self.nonblocking.sumToBuffer(offset, buffer, channel_multipliers),
+        .stream_from_disk   => self.stream_from_disk.sumToBuffer(offset, buffer, channel_multipliers),
+        .stream_from_memory => self.stream_from_memory.sumToBuffer(offset, buffer, channel_multipliers),
+    };
+}
 
-    pub fn maFromFileAlloc(allocator: std.mem.Allocator, file: std.fs.File, decoding_strategy: DecodingStrategy) !@This() {
-        return switch (decoding_strategy) {
-            .blocking           => .{ .blocking           = try AudioSourceBlocking.maFromFileAlloc(allocator, file), },
-            .nonblocking        => .{ .nonblocking        = try AudioSourceNonBlocking.maFromFileAlloc(allocator, file), },
-            .stream_from_disk   => return error.StreamingAudioNotAvailableWithZigFileIO,
-            .stream_from_memory => .{ .stream_from_memory = try AudioSourceStreamFromMemory.maFromFileAlloc(allocator, file), },
-        };
-    }
+pub inline fn sampleCount(self: *const @This()) usize {
+    return switch(self.*) {
+        .blocking           => self.blocking.sampleCount(),
+        .nonblocking        => self.nonblocking.sampleCount(),
+        .stream_from_disk   => self.stream_from_disk.sampleCount(),
+        .stream_from_memory => self.stream_from_memory.sampleCount(),
+    };
+}
 
-    pub fn maFromMemAlloc(allocator: std.mem.Allocator, bytes: []const u8, decoding_strategy: DecodingStrategy) !@This() {
-        return switch (decoding_strategy) {
-            .blocking           => .{ .blocking           = try AudioSourceBlocking.maFromMemAlloc(allocator, bytes), },
-            .nonblocking        => .{ .nonblocking        = try AudioSourceNonBlocking.maFromMemAlloc(allocator, bytes), },
-            .stream_from_disk   => return error.StreamingAudioNotAvailableFromMemory,
-            .stream_from_memory => .{ .stream_from_memory = try AudioSourceStreamFromMemory.maFromMemAlloc(allocator, bytes), },
-        };
-    }
 
-    pub fn free(self: *@This(), allocator: std.mem.Allocator) void {
-        switch (self.*) {
-            .blocking           => self.blocking.free(allocator),
-            .nonblocking        => self.nonblocking.free(allocator),
-            .stream_from_disk   => self.stream_from_disk.free(allocator),
-            .stream_from_memory => self.stream_from_memory.free(allocator),
-        }
-    }
-
-    pub fn sumToBuffer(self: *@This(), offset: usize, buffer: []AudioIO.SampleT, channel_multipliers: [AudioIO.channels]AudioIO.SampleT) usize {
-        return switch (self.*) {
-            .blocking           => self.blocking.sumToBuffer(offset, buffer, channel_multipliers),
-            .nonblocking        => self.nonblocking.sumToBuffer(offset, buffer, channel_multipliers),
-            .stream_from_disk   => self.stream_from_disk.sumToBuffer(offset, buffer, channel_multipliers),
-            .stream_from_memory => self.stream_from_memory.sumToBuffer(offset, buffer, channel_multipliers),
-        };
-    }
-
-    pub inline fn sampleCount(self: *const @This()) usize {
-        return switch(self.*) {
-            .blocking           => self.blocking.sampleCount(),
-            .nonblocking        => self.nonblocking.sampleCount(),
-            .stream_from_disk   => self.stream_from_disk.sampleCount(),
-            .stream_from_memory => self.stream_from_memory.sampleCount(),
-        };
-    }
-
-};
-
-pub const AudioSourceBlocking = struct {
+pub const Blocking = struct {
 
     samples: []const AudioIO.SampleT,
 
@@ -122,7 +119,7 @@ pub const AudioSourceBlocking = struct {
         const abs_path = try exe_dir.realpathAlloc(allocator, path);
         defer allocator.free(abs_path);
 
-        return try maFromAbsPathAlloc(allocator, abs_path);
+        return try @This().maFromAbsPathAlloc(allocator, abs_path);
 
     }
 
@@ -131,7 +128,7 @@ pub const AudioSourceBlocking = struct {
         const file = try std.fs.openFileAbsolute(path, .{});
         defer file.close();
 
-        return try maFromFileAlloc(allocator, file);
+        return try @This().maFromFileAlloc(allocator, file);
 
     }
 
@@ -140,7 +137,7 @@ pub const AudioSourceBlocking = struct {
         const file_contents = try file.reader().readAllAlloc(allocator, std.math.maxInt(usize));
         defer allocator.free(file_contents);
 
-        return try maFromMemAlloc(allocator, file_contents);
+        return try @This().maFromMemAlloc(allocator, file_contents);
     
     }
 
@@ -261,7 +258,7 @@ pub const AudioSourceNonBlocking = struct {
         const abs_path = try exe_dir.realpathAlloc(allocator, path);
         defer allocator.free(abs_path);
 
-        return try maFromAbsPathAlloc(allocator, abs_path);
+        return try @This().maFromAbsPathAlloc(allocator, abs_path);
 
     }
 
@@ -270,7 +267,7 @@ pub const AudioSourceNonBlocking = struct {
         const file = try std.fs.openFileAbsolute(path, .{});
         defer file.close();
 
-        return try maFromFileAlloc(allocator, file);
+        return try @This().maFromFileAlloc(allocator, file);
 
     }
 
@@ -278,7 +275,7 @@ pub const AudioSourceNonBlocking = struct {
 
         const bytes = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
 
-        return try maFromMemAlloc(allocator, bytes);
+        return try @This().maFromMemAlloc(allocator, bytes);
 
     }
 
@@ -371,7 +368,7 @@ pub const AudioSourceStreamedFromDiskMiniaudio = struct {
         const abs_path = try exe_dir.realpathAlloc(allocator, path);
         defer allocator.free(abs_path);
 
-        return try fromAbsPathAlloc(allocator, abs_path);
+        return try @This().fromAbsPathAlloc(allocator, abs_path);
 
     }
 
@@ -490,7 +487,7 @@ pub const AudioSourceStreamedFromMemoryMiniaudio = struct {
         const abs_path = try exe_dir.realpathAlloc(allocator, path);
         defer allocator.free(abs_path);
 
-        return try fromAbsPathAlloc(allocator, abs_path);
+        return try @This().fromAbsPathAlloc(allocator, abs_path);
 
     }
 
@@ -499,7 +496,7 @@ pub const AudioSourceStreamedFromMemoryMiniaudio = struct {
         const file = try std.fs.openFileAbsolute(path, .{});
         defer file.close();
 
-        return try fromFileAlloc(allocator, file);
+        return try @This().fromFileAlloc(allocator, file);
 
     }
 
@@ -507,7 +504,7 @@ pub const AudioSourceStreamedFromMemoryMiniaudio = struct {
 
         const file_contents = try file.reader().readAllAlloc(allocator, std.math.maxInt(usize));
 
-        return try fromMemAlloc(allocator, file_contents);
+        return try @This().fromMemAlloc(allocator, file_contents);
 
     }
 

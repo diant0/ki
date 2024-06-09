@@ -1,12 +1,12 @@
 [submodule "modules/glfw/glfw"]
-	path = modules/glfw/glfw
+	path = modules/glfw/src/glfw
 	url = https://github.com/diant0/glfw
 [submodule "modules/stb/stb"]
-	path = modules/stb/stb
+	path = modules/stb/src/stb
 	url = https://github.com/diant0/stb
 [submodule "modules/qoi/qoi"]
-	path = modules/qoi/qoi
+	path = modules/qoi/src/qoi
 	url = https://github.com/diant0/qoi
 [submodule "modules/miniaudio/miniaudio"]
-	path = modules/miniaudio/miniaudio
+	path = modules/miniaudio/src/miniaudio
 	url = https://github.com/diant0/miniaudio

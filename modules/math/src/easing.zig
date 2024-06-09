@@ -1,4 +1,4 @@
-const math = @import("math.zig");
+const math = @import("module.zig");
 
 // TODO: exponential easing
 

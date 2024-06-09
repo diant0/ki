@@ -1,5 +1,5 @@
 const std = @import("std");
-const math = @import("math.zig");
+const math = @import("module.zig");
 
 // TODO: vrandom
 // TODO: vnoise

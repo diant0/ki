@@ -15,10 +15,10 @@ pub fn build(b: *std.Build) !void {
 
     // module
     const module = b.addModule("stb", .{
-        .root_source_file = b.path("src/stb.zig"),
+        .root_source_file = b.path("src/module.zig"),
     });
     module.addOptions("config", config);
-    module.addIncludePath(b.path("stb"));
+    module.addIncludePath(b.path("src/stb"));
 
     // lib
     const lib = b.addStaticLibrary(.{
@@ -28,18 +28,18 @@ pub fn build(b: *std.Build) !void {
     });
 
     lib.linkLibC();
-    lib.addIncludePath(b.path("stb"));
+    lib.addIncludePath(b.path("src/stb"));
 
     if (build_stb_image) {
-        lib.addCSourceFile(.{ .file = b.path("c/impl_stb_image.c" ) });
+        lib.addCSourceFile(.{ .file = b.path("src/c/stb_image.c" ) });
     }
 
     if (build_stb_image_write) {
-        lib.addCSourceFile(.{ .file = b.path("c/impl_stb_image_write.c" ) });
+        lib.addCSourceFile(.{ .file = b.path("src/c/stb_image_write.c" ) });
     }
 
     if (build_stb_truetype) {
-        lib.addCSourceFile(.{ .file = b.path("c/impl_stb_truetype.c") });
+        lib.addCSourceFile(.{ .file = b.path("src/c/stb_truetype.c") });
     }
 
     b.installArtifact(lib);

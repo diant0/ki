@@ -4,9 +4,9 @@ pub fn build(b: *std.Build) !void {
 
     // module
     const module = b.addModule("glad", .{
-        .root_source_file = b.path("src/glad.zig"),
+        .root_source_file = b.path("src/module.zig"),
     });
-    module.addIncludePath(b.path("glad"));
+    module.addIncludePath(b.path("src/c/include"));
 
     // lib
     const lib = b.addStaticLibrary(.{
@@ -16,8 +16,8 @@ pub fn build(b: *std.Build) !void {
     });
 
     lib.linkLibC();
-    lib.addIncludePath(b.path("glad"));
-    lib.addCSourceFile(.{ .file = b.path("c/impl.c") });
+    lib.addIncludePath(b.path("src/c/include"));
+    lib.addCSourceFile(.{ .file = b.path("src/c/glad.c") });
 
     b.installArtifact(lib);
 

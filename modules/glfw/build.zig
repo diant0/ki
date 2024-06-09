@@ -11,36 +11,46 @@ pub fn build(b: *std.Build) !void {
     const target    = b.standardTargetOptions(.{});
     const optimize  = b.standardOptimizeOption(.{});
 
-    const wayland_headers_path: ?[]const u8 = switch (target.result.os.tag) {
+    const cache_subpath = "glfw-include";
+    const linux_include_path: ?[]const u8 = if (target.result.os.tag == .linux) blk: {
+        break :blk if (target.query.os_tag == null) null else include_path: {
+            try collectSystemHeaders(b, cache_subpath, linux_build_platform_wayland, linux_build_platform_x11);
+            const x = try b.cache_root.handle.realpathAlloc(b.allocator, "glfw-include");
+            break :include_path x;
+        };
+    } else null;
+
+    const wayland_include_path: ?[]const u8 = switch (target.result.os.tag) {
         .linux => blk: {
             if (!linux_build_platform_wayland) {
                 break :blk null;
             }
-            const cache_subpath = "wayland";
             try generateWaylandHeaders(b, cache_subpath);
-            const x = try b.cache_root.handle.realpathAlloc(b.allocator, "wayland");
+            const x = try b.cache_root.handle.realpathAlloc(b.allocator, "glfw-include");
             break :blk x;
         },
         else => null,
 
     };
-    defer if (wayland_headers_path) | x | {
+    defer if (wayland_include_path) | x | {
         b.allocator.free(x);
     };
 
     // module
     const module = b.addModule("glfw", .{
-        .root_source_file = b.path("src/glfw.zig"),
+        .root_source_file = b.path("src/module.zig"),
     });
 
-    module.addIncludePath(b.path("glfw/include"));
+    module.addIncludePath(b.path("src/glfw/include"));
     
     switch (target.result.os.tag) {
     
         .linux => {
 
-            module.addIncludePath(.{ .cwd_relative = "/usr/include" });
-            if (wayland_headers_path) | x | {
+            if (linux_include_path) | x | {
+                module.addIncludePath(.{ .cwd_relative = x });
+            }
+            if (wayland_include_path) | x | {
                 module.addIncludePath(.{ .cwd_relative = x });
             }
         
@@ -58,14 +68,16 @@ pub fn build(b: *std.Build) !void {
     });
 
     lib.linkLibC();
-    lib.addIncludePath(b.path("glfw/include"));
+    lib.addIncludePath(b.path("src/glfw/include"));
 
     switch (target.result.os.tag) {
     
         .linux => {
 
-            lib.addIncludePath(.{ .cwd_relative = "/usr/include" });
-            if (wayland_headers_path) | x | {
+            if (linux_include_path) | x | {
+                lib.addIncludePath(.{ .cwd_relative = x });
+            }
+            if (wayland_include_path) | x | {
                 lib.addIncludePath(.{ .cwd_relative = x });
             }
         
@@ -132,16 +144,11 @@ pub fn build(b: *std.Build) !void {
 
 fn generateWaylandHeaders(b: *std.Build, cache_subpath: []const u8) !void {
 
-    const access_error = b.cache_root.handle.access(cache_subpath, .{});
-    if (access_error != error.FileNotFound) {
-        return;
-    }
-
     try b.cache_root.handle.makePath(cache_subpath);
 
     const wayland_scanner_program = try b.findProgram(&.{ "wayland-scanner" }, &.{ "" });
 
-    const protocols_dir_path = try b.build_root.handle.realpathAlloc(b.allocator, "glfw/deps/wayland");
+    const protocols_dir_path = try b.build_root.handle.realpathAlloc(b.allocator, "src/glfw/deps/wayland");
     defer b.allocator.free(protocols_dir_path);
     const protocols_dir = try std.fs.openDirAbsolute(protocols_dir_path, .{ .iterate = true });
     var protocols_dir_iterator = protocols_dir.iterate();
@@ -164,9 +171,14 @@ fn generateWaylandHeaders(b: *std.Build, cache_subpath: []const u8) !void {
         const exit_code_client_header = blk: {
 
             const client_header_abspath = try std.fmt.bufPrint(&output_file_path_buf, "{s}/{s}/{s}-client-protocol.h",
-                .{ b.cache_root.path orelse ".", cache_subpath, protocol_name });
+                .{ b.cache_root.path orelse return error.CacheRootIsCwd, cache_subpath, protocol_name });
 
-            var process = std.ChildProcess.init(&[_][]const u8 {
+            const dest_access_error = b.cache_root.handle.access(client_header_abspath, .{});
+            if (dest_access_error != error.FileNotFound) {
+                break :blk 0;
+            }
+
+            var process = std.process.Child.init(&[_][]const u8 {
                 wayland_scanner_program,
                 "client-header",
                 input_file_abspath,
@@ -186,8 +198,13 @@ fn generateWaylandHeaders(b: *std.Build, cache_subpath: []const u8) !void {
 
             const private_code_abspath = try std.fmt.bufPrint(&output_file_path_buf, "{s}/{s}/{s}-client-protocol-code.h",
                 .{ b.cache_root.path.?, cache_subpath, protocol_name });
+            
+            const dest_access_error = b.cache_root.handle.access(private_code_abspath, .{});
+            if (dest_access_error != error.FileNotFound) {
+                break :blk 0;
+            }
 
-            var process = std.ChildProcess.init(&[_][]const u8 {
+            var process = std.process.Child.init(&[_][]const u8 {
                 wayland_scanner_program,
                 "private-code",
                 input_file_abspath,
@@ -207,7 +224,64 @@ fn generateWaylandHeaders(b: *std.Build, cache_subpath: []const u8) !void {
 
 }
 
-fn updateGamepadMappings(self: *std.Build.Step, _: *std.Progress.Node) !void {
+fn collectSystemHeaders(b: *std.Build, cache_subpath: []const u8, wayland: bool, x11: bool) !void {
+
+    try b.cache_root.handle.makePath(cache_subpath);
+
+    var include_abspath_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const include_abspath = try b.cache_root.handle.realpath(cache_subpath, &include_abspath_buf);
+
+    if (wayland) {
+
+        for (c_system_headers_wayland) | header | {
+
+            var dest_path_buf: [std.fs.max_path_bytes]u8 =  undefined;
+            const dest_path = try std.fmt.bufPrint(&dest_path_buf, "{s}/{s}", .{ include_abspath, header });
+
+            const dest_access_error = b.cache_root.handle.access(dest_path, .{});
+            if (dest_access_error != error.FileNotFound) {
+                continue;
+            }
+
+            const dest_dir_path = std.fs.path.dirname(dest_path) orelse return error.UnexpectedNullDirname;
+            try b.cache_root.handle.makePath(dest_dir_path);
+
+            var src_path_buf: [std.fs.max_path_bytes]u8 = undefined;
+            const src_path = try std.fmt.bufPrint(&src_path_buf, "/usr/include/{s}", .{ header });
+
+            try std.fs.copyFileAbsolute(src_path, dest_path, .{});
+
+        }
+
+    }
+
+    if (x11) {
+
+        for (c_system_headers_x11) | header | {
+
+            var dest_path_buf: [std.fs.max_path_bytes]u8 =  undefined;
+            const dest_path = try std.fmt.bufPrint(&dest_path_buf, "{s}/{s}", .{ include_abspath, header });
+
+            const dest_access_error = b.cache_root.handle.access(dest_path, .{});
+            if (dest_access_error != error.FileNotFound) {
+                continue;
+            }
+
+            const dest_dir_path = std.fs.path.dirname(dest_path) orelse return error.UnexpectedNullDirname;
+            try b.cache_root.handle.makePath(dest_dir_path);
+
+            var src_path_buf: [std.fs.max_path_bytes]u8 = undefined;
+            const src_path = try std.fmt.bufPrint(&src_path_buf, "/usr/include/{s}", .{ header });
+
+            try std.fs.copyFileAbsolute(src_path, dest_path, .{});
+
+        }
+
+    }
+
+}
+
+fn updateGamepadMappings(self: *std.Build.Step, _: std.Progress.Node) !void {
 
     const b = self.owner;
 
@@ -215,16 +289,16 @@ fn updateGamepadMappings(self: *std.Build.Step, _: *std.Progress.Node) !void {
 
     const build_root = b.build_root.handle;
     
-    const cmake_scipt_path = try build_root.realpathAlloc(b.allocator, "glfw/CMake/GenerateMappings.cmake");
+    const cmake_scipt_path = try build_root.realpathAlloc(b.allocator, "src/glfw/CMake/GenerateMappings.cmake");
     defer b.allocator.free(cmake_scipt_path);
     
-    const mappings_h_in_path = try build_root.realpathAlloc(b.allocator, "glfw/src/mappings.h.in");
+    const mappings_h_in_path = try build_root.realpathAlloc(b.allocator, "src/glfw/src/mappings.h.in");
     defer b.allocator.free(mappings_h_in_path);
 
-    const mappings_h_path = try build_root.realpathAlloc(b.allocator, "glfw/src/mappings.h");
+    const mappings_h_path = try build_root.realpathAlloc(b.allocator, "src/glfw/src/mappings.h");
     defer b.allocator.free(mappings_h_path);
 
-    var process = std.ChildProcess.init(&[_][]const u8 {
+    var process = std.process.Child.init(&[_][]const u8 {
         cmake_program,
         "-P",
         cmake_scipt_path,
@@ -240,7 +314,7 @@ fn updateGamepadMappings(self: *std.Build.Step, _: *std.Progress.Node) !void {
     
 }
 
-const c_src_path = "glfw/src";
+const c_src_path = "src/glfw/src";
 
 pub const c_flag_build_x11     = "-D_GLFW_X11";
 pub const c_flag_build_wayland = "-D_GLFW_WAYLAND";
@@ -298,4 +372,48 @@ const c_src_platform_win32 = &[_][]const u8 {
     c_src_path ++ "/wgl_context.c",
     c_src_path ++ "/egl_context.c",
     c_src_path ++ "/osmesa_context.c",
+};
+
+const c_system_headers_wayland = &[_][]const u8 {
+    "wayland-client-core.h",
+    "wayland-version.h",
+    "wayland-util.h",
+    "wayland-client.h",
+    "xkbcommon/xkbcommon.h",
+    "xkbcommon/xkbcommon-names.h",
+    "xkbcommon/xkbcommon-keysyms.h",
+    "xkbcommon/xkbcommon-compat.h",
+    "xkbcommon/xkbcommon-compose.h",
+};
+
+const c_system_headers_x11 = &[_][]const u8 {
+    "X11/Xlib.h",
+    "X11/X.h",
+    "X11/Xfuncproto.h",
+    "X11/Xosdefs.h",
+    "X11/Xosdefs.h",
+    "X11/keysym.h",
+    "X11/keysymdef.h",
+    "X11/Xatom.h",
+    "X11/Xresource.h",
+    "X11/Xutil.h",
+    "X11/Xdefs.h",
+    "X11/XKBlib.h",
+    "X11/Xmd.h",
+    "X11/cursorfont.h",
+    "X11/Xcursor/Xcursor.h",
+    "X11/extensions/Xrandr.h",
+    "X11/extensions/randr.h",
+    "X11/extensions/Xrender.h",
+    "X11/extensions/render.h",
+    "X11/extensions/XKBstr.h",
+    "X11/extensions/XKB.h",
+    "X11/extensions/Xinerama.h",
+    "X11/extensions/XInput2.h",
+    "X11/extensions/XI2.h",
+    "X11/extensions/Xge.h",
+    "X11/extensions/Xfixes.h",
+    "X11/extensions/xfixeswire.h",
+    "X11/extensions/shape.h",
+    "X11/extensions/shapeconst.h",
 };

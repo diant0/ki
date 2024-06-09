@@ -1,194 +1,196 @@
 const std = @import("std");
 const glfw = @import("glfw");
-const log = @import("log.zig");
-const DynArr = @import("DynArr.zig").DynArr;
+const DynArr = @import("dyn_arr.zig").DynArr;
 const utf = @import("utf.zig");
 
-const toplevel = @This();
+var log = &@import("ki.zig").log;
 
-pub const Window = struct {
+const Window = @This();
 
-    pub const context = struct {
-
-        pub const InitOptions = struct {
-            prefer_wayland: bool = false,
-        };
-
-        pub fn init(options: @This().InitOptions) !void {
-
-            if (options.prefer_wayland) {
-                if (glfw.glfwPlatformSupported(glfw.GLFW_PLATFORM_WAYLAND) == glfw.GLFW_TRUE) {
-                    glfw.glfwInitHint(glfw.GLFW_PLATFORM, glfw.GLFW_PLATFORM_WAYLAND);
-                }
-            }
-
-            const ret_code = glfw.glfwInit();
-            if (ret_code != glfw.GLFW_TRUE) {
-                var glfw_error_description_buffer: [2048]u8 = undefined;
-                var glfw_error_description_ptr: [*c]u8 = @ptrCast(&glfw_error_description_buffer);
-                const glfw_error_number = glfw.glfwGetError(&glfw_error_description_ptr);
-                log.print(.Error, "glfw error {}: {s}\n", .{ glfw_error_number, glfw_error_description_ptr });
-                return error.GLFWInitFailed;
-            }
-
-        }
-
-        pub fn terminate() void {
-            glfw.glfwTerminate();
-        }
-
-        pub fn pollEvents() void {
-            glfw.glfwPollEvents();
-        }
-
-        pub fn glfwVersion() @Vector(3, u32) {
-            var x: @Vector(3, c_int) = undefined;
-            glfw.glfwGetVersion(&x[0], &x[1], &x[2]);
-            return @intCast(x);
-        }
-
-        pub fn glfwPlatform() []const u8 {
-            return switch (glfw.glfwGetPlatform()) {
-                glfw.GLFW_PLATFORM_WIN32   => "win32",
-                glfw.GLFW_PLATFORM_COCOA   => "cocoa",
-                glfw.GLFW_PLATFORM_WAYLAND => "wayland",
-                glfw.GLFW_PLATFORM_X11     => "x11",
-                else => "unknown",
-            };
-        }
-
-        pub const getProcAddress = glfw.glfwGetProcAddress;
-
-    };
-
-    handle: *glfw.GLFWwindow = undefined,
-
-    size:       @Vector(2, u32) = @splat(0),
-    cursor_pos: @Vector(2, f32) = @splat(0),
-
-    event_queue: DynArr(Event, .{
-        .auto_shrink_capacity = false,
-    }) = .{},
+pub const context = struct {
 
     pub const InitOptions = struct {
-        title: []const u8,
-        size: @Vector(2, u32),
-        fullscreen: bool = false,
+        prefer_wayland: bool = false,
     };
 
-    pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator, init_options: @This().InitOptions) !void {
+    pub fn init(options: @This().InitOptions) !void {
 
-        glfw.glfwWindowHint(glfw.GLFW_OPENGL_FORWARD_COMPAT, glfw.GLFW_TRUE);
-        glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MAJOR, 4);
-        glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MINOR, 5);
-        glfw.glfwWindowHint(glfw.GLFW_OPENGL_PROFILE, glfw.GLFW_OPENGL_CORE_PROFILE);
-
-        const monitor = glfw.glfwGetPrimaryMonitor();
-        const mode = glfw.glfwGetVideoMode(monitor)[0];
-
-        glfw.glfwWindowHint(glfw.GLFW_RED_BITS,   mode.redBits);
-        glfw.glfwWindowHint(glfw.GLFW_GREEN_BITS, mode.greenBits);
-        glfw.glfwWindowHint(glfw.GLFW_BLUE_BITS,  mode.blueBits);
-        glfw.glfwWindowHint(glfw.GLFW_REFRESH_RATE, mode.refreshRate);
-
-        const size: @Vector(2, u32) = if (init_options.fullscreen) .{
-            @intCast(mode.width), @intCast(mode.height),    
-        } else init_options.size;
-
-        const handle = glfw.glfwCreateWindow(@intCast(size[0]), @intCast(size[1]), init_options.title.ptr, if (init_options.fullscreen) monitor else null, null)
-            orelse return error.GLFWCreateWindowFailed;
-
-        self.handle   = handle;
-        self.size     = size;
-
-        try self.event_queue.init(allocator);
-
-        if (glfw.glfwRawMouseMotionSupported() == glfw.GLFW_TRUE) {
-            glfw.glfwSetInputMode(self.handle, glfw.GLFW_RAW_MOUSE_MOTION, glfw.GLFW_TRUE);
-        } else {
-            log.print(.Warning, "raw mouse motion not supported\n", .{});
+        if (options.prefer_wayland) {
+            if (glfw.glfwPlatformSupported(glfw.GLFW_PLATFORM_WAYLAND) == glfw.GLFW_TRUE) {
+                glfw.glfwInitHint(glfw.GLFW_PLATFORM, glfw.GLFW_PLATFORM_WAYLAND);
+            }
         }
 
-        _ = glfw.glfwSetWindowUserPointer(handle, self);
-        _ = glfw.glfwSetWindowSizeCallback(handle, __onResize);
-        _ = glfw.glfwSetKeyCallback(handle, __onKeyboard);
-        _ = glfw.glfwSetCharCallback(handle, __onChar);
-        _ = glfw.glfwSetCursorPosCallback(handle, __onCursorMove);
-        _ = glfw.glfwSetMouseButtonCallback(handle, __onCursorButton);
-        _ = glfw.glfwSetScrollCallback(handle, __onScroll);
-        _ = glfw.glfwSetWindowFocusCallback(handle, __onFocus);
-        _ = glfw.glfwSetWindowCloseCallback(handle, __onTerminationRequest);
-
-    }
-
-    pub fn free(self: *const @This()) void {
-        glfw.glfwDestroyWindow(self.handle);
-        self.event_queue.free();
-    }
-
-    pub fn getEvent(self: *@This()) ?Event {
-        const event = self.event_queue.popFront();
-        if (event == null) {
-            self.event_queue.clear();
-        }
-        return event;
-    }
-
-    pub fn terminationRequested(self: *const @This()) bool {
-        return glfw.glfwWindowShouldClose(self.handle) != 0;
-    }
-
-    pub fn makeContextCurrent(self: *const @This()) void {
-        glfw.glfwMakeContextCurrent(self.handle);
-    }
-
-    pub fn swapBuffers(self: *const @This()) void {
-        glfw.glfwSwapBuffers(self.handle);
-    }
-
-    pub fn setSize(self: *const @This(), size: @Vector(2, u32)) void {
-        glfw.glfwSetWindowSize(self.handle, @intCast(size[0]), @intCast(size[1]));
-    }
-
-    pub const Mode = union(enum) {
-        fullscreen: void,
-        windowed: @Vector(2, u32),
-    };
-
-    pub fn setMode(self: *const @This(), mode: Mode) void {
-
-        switch (mode) {
-
-            .fullscreen => {
-                const monitor = glfw.glfwGetWindowMonitor(self.handle) orelse glfw.glfwGetPrimaryMonitor();
-                const video_mode = glfw.glfwGetVideoMode(monitor)[0];
-                glfw.glfwSetWindowMonitor(self.handle, monitor, 0, 0, video_mode.width, video_mode.height, video_mode.refreshRate);
-            },
-
-            .windowed => | size | {
-                glfw.glfwSetWindowMonitor(self.handle, null, 64, 64, @intCast(size[0]), @intCast(size[1]), 0);
-                self.setSize(size);
-            },
-
+        const ret_code = glfw.glfwInit();
+        if (ret_code != glfw.GLFW_TRUE) {
+            var glfw_error_description_buffer: [2048]u8 = undefined;
+            var glfw_error_description_ptr: [*c]u8 = @ptrCast(&glfw_error_description_buffer);
+            const glfw_error_number = glfw.glfwGetError(&glfw_error_description_ptr);
+            log.print(.Error, "glfw error {}: {s}\n", .{ glfw_error_number, glfw_error_description_ptr });
+            return error.GLFWInitFailed;
         }
 
     }
+
+    pub fn terminate() void {
+        glfw.glfwTerminate();
+    }
+
+    pub fn pollEvents() void {
+        glfw.glfwPollEvents();
+    }
+
+    pub fn glfwVersion() @Vector(3, u32) {
+        var x: @Vector(3, c_int) = undefined;
+        glfw.glfwGetVersion(&x[0], &x[1], &x[2]);
+        return @intCast(x);
+    }
+
+    pub fn glfwPlatform() []const u8 {
+        return switch (glfw.glfwGetPlatform()) {
+            glfw.GLFW_PLATFORM_WIN32   => "win32",
+            glfw.GLFW_PLATFORM_COCOA   => "cocoa",
+            glfw.GLFW_PLATFORM_WAYLAND => "wayland",
+            glfw.GLFW_PLATFORM_X11     => "x11",
+            else => "unknown",
+        };
+    }
+
+    pub const getProcAddress = glfw.glfwGetProcAddress;
 
 };
 
+handle: *glfw.GLFWwindow = undefined,
+
+size:       @Vector(2, u32) = @splat(0),
+cursor_pos: @Vector(2, f32) = @splat(0),
+
+event_queue: DynArr(Event, .{
+    .auto_shrink_capacity = false,
+}) = .{},
+
+pub const InitOptions = struct {
+    title: []const u8,
+    size: @Vector(2, u32),
+    fullscreen: bool = false,
+};
+
+pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator, init_options: @This().InitOptions) !void {
+
+    glfw.glfwWindowHint(glfw.GLFW_OPENGL_FORWARD_COMPAT, glfw.GLFW_TRUE);
+    glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MINOR, 5);
+    glfw.glfwWindowHint(glfw.GLFW_OPENGL_PROFILE, glfw.GLFW_OPENGL_CORE_PROFILE);
+
+    const monitor = glfw.glfwGetPrimaryMonitor();
+    const mode = glfw.glfwGetVideoMode(monitor)[0];
+
+    glfw.glfwWindowHint(glfw.GLFW_RED_BITS,   mode.redBits);
+    glfw.glfwWindowHint(glfw.GLFW_GREEN_BITS, mode.greenBits);
+    glfw.glfwWindowHint(glfw.GLFW_BLUE_BITS,  mode.blueBits);
+    glfw.glfwWindowHint(glfw.GLFW_REFRESH_RATE, mode.refreshRate);
+
+    const size: @Vector(2, u32) = if (init_options.fullscreen) .{
+        @intCast(mode.width), @intCast(mode.height),    
+    } else init_options.size;
+
+    const handle = glfw.glfwCreateWindow(@intCast(size[0]), @intCast(size[1]), init_options.title.ptr, if (init_options.fullscreen) monitor else null, null)
+        orelse return error.GLFWCreateWindowFailed;
+
+    self.handle   = handle;
+    self.size     = size;
+
+    try self.event_queue.init(allocator);
+
+    if (glfw.glfwRawMouseMotionSupported() == glfw.GLFW_TRUE) {
+        glfw.glfwSetInputMode(self.handle, glfw.GLFW_RAW_MOUSE_MOTION, glfw.GLFW_TRUE);
+    } else {
+        log.print(.Warning, "raw mouse motion not supported\n", .{});
+    }
+
+    _ = glfw.glfwSetWindowUserPointer(handle, self);
+    _ = glfw.glfwSetWindowSizeCallback(handle, __onResize);
+    _ = glfw.glfwSetKeyCallback(handle, __onKeyboard);
+    _ = glfw.glfwSetCharCallback(handle, __onChar);
+    _ = glfw.glfwSetCursorPosCallback(handle, __onCursorMove);
+    _ = glfw.glfwSetMouseButtonCallback(handle, __onCursorButton);
+    _ = glfw.glfwSetScrollCallback(handle, __onScroll);
+    _ = glfw.glfwSetWindowFocusCallback(handle, __onFocus);
+    _ = glfw.glfwSetWindowCloseCallback(handle, __onTerminationRequest);
+
+}
+
+pub fn terminateFree(self: *const @This()) void {
+    glfw.glfwDestroyWindow(self.handle);
+    self.event_queue.free();
+}
+
+pub fn consumeEvent(self: *@This()) ?Event {
+    const event = self.event_queue.popFront();
+    if (event == null) {
+        self.event_queue.clear();
+    }
+    return event;
+}
+
+pub fn terminationRequested(self: *const @This()) bool {
+    return glfw.glfwWindowShouldClose(self.handle) != 0;
+}
+
+pub fn makeContextCurrent(self: *const @This()) void {
+    glfw.glfwMakeContextCurrent(self.handle);
+}
+
+pub fn swapBuffers(self: *const @This()) void {
+    glfw.glfwSwapBuffers(self.handle);
+}
+
+pub fn setSize(self: *const @This(), size: @Vector(2, u32)) void {
+    glfw.glfwSetWindowSize(self.handle, @intCast(size[0]), @intCast(size[1]));
+}
+
+pub const Mode = union(enum) {
+    fullscreen: void,
+    windowed: @Vector(2, u32),
+};
+
+pub fn setMode(self: *const @This(), mode: Mode) void {
+
+    switch (mode) {
+
+        .fullscreen => {
+            const monitor = glfw.glfwGetWindowMonitor(self.handle) orelse glfw.glfwGetPrimaryMonitor();
+            const video_mode = glfw.glfwGetVideoMode(monitor)[0];
+            glfw.glfwSetWindowMonitor(self.handle, monitor, 0, 0, video_mode.width, video_mode.height, video_mode.refreshRate);
+        },
+
+        .windowed => | size | {
+            glfw.glfwSetWindowMonitor(self.handle, null, 64, 64, @intCast(size[0]), @intCast(size[1]), 0);
+            self.setSize(size);
+        },
+
+    }
+
+}
+
 pub const Event = union(enum) {
-    resize:         @Vector(2, u32),
-    key:            struct {
-        key: Key,
+
+    pub const Key = struct {
+        key: Window.Key,
         down: bool,
         repeat: bool,
-    },
+    };
+
+    pub const CursorButton = struct {
+        button: Window.CursorButton,
+        down: bool,
+    };
+
+    resize:         @Vector(2, u32),
+    key:            @This().Key,
     char:           utf.Codepoint,
     cursor_move:    @Vector(2, f32),
-    cursor_button: struct {
-        button: CursorButton,
-        down: bool,
-    },
+    cursor_button:  @This().CursorButton,
     scroll:         @Vector(2, f32),
     focus:          bool,
     termination_request: void,
@@ -318,6 +320,15 @@ pub const Key = enum(@TypeOf(glfw.GLFW_KEY_UNKNOWN)) {
     RightSuper   = glfw.GLFW_KEY_RIGHT_SUPER,
     Menu         = glfw.GLFW_KEY_MENU,
 
+    pub fn fromTagName(name: []const u8) !@This() {
+        inline for (@typeInfo(@This()).Enum.fields) | enum_field_info | {
+            if (std.mem.eql(u8, name, enum_field_info.name)) {
+                return @enumFromInt(enum_field_info.value);
+            }
+        }
+        return error.CouldNotParseTagName;
+    }
+
 };
 
 pub const CursorButton = enum(@TypeOf(glfw.GLFW_MOUSE_BUTTON_LEFT)) {
@@ -336,7 +347,7 @@ pub const CursorButton = enum(@TypeOf(glfw.GLFW_MOUSE_BUTTON_LEFT)) {
 
 fn __onResize(handle: ?*glfw.GLFWwindow, width: c_int, height: c_int) callconv(.C) void {
 
-    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+    var window: *@This() = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
 
     window.size[0] = @intCast(width);
     window.size[1] = @intCast(height);
@@ -349,7 +360,7 @@ fn __onResize(handle: ?*glfw.GLFWwindow, width: c_int, height: c_int) callconv(.
 
 fn __onKeyboard(handle: ?*glfw.GLFWwindow, glfw_key: c_int, _: c_int, action: c_int, _: c_int) callconv(.C) void {
 
-    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+    var window: *@This() = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
 
     const repeat = action == glfw.GLFW_REPEAT;
     const down = action == glfw.GLFW_PRESS or repeat;
@@ -366,7 +377,7 @@ fn __onKeyboard(handle: ?*glfw.GLFWwindow, glfw_key: c_int, _: c_int, action: c_
 
 fn __onChar(handle: ?*glfw.GLFWwindow, glfw_char: c_uint) callconv(.C) void {
 
-    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+    var window: *@This() = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
 
     const codepoint: utf.Codepoint = @intCast(glfw_char);
 
@@ -378,7 +389,7 @@ fn __onChar(handle: ?*glfw.GLFWwindow, glfw_char: c_uint) callconv(.C) void {
 
 fn __onCursorMove(handle: ?*glfw.GLFWwindow, x: f64, y: f64) callconv(.C) void {
 
-    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+    var window: *@This() = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
 
     window.cursor_pos[0] = @floatCast(x);
     window.cursor_pos[1] = @floatCast(y);
@@ -391,7 +402,7 @@ fn __onCursorMove(handle: ?*glfw.GLFWwindow, x: f64, y: f64) callconv(.C) void {
 
 fn __onCursorButton(handle: ?*glfw.GLFWwindow, glfw_button: c_int, action: c_int, _: c_int) callconv(.C) void {
 
-    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+    var window: *@This() = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
 
     const button: CursorButton = @enumFromInt(glfw_button);
     const down = action == glfw.GLFW_PRESS;
@@ -407,7 +418,7 @@ fn __onCursorButton(handle: ?*glfw.GLFWwindow, glfw_button: c_int, action: c_int
 
 fn __onScroll(handle: ?*glfw.GLFWwindow, x: f64, y: f64) callconv(.C) void {
 
-    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+    var window: *@This() = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
 
     const scroll: @Vector(2, f32) = .{ @floatCast(x), @floatCast(y) };
 
@@ -419,7 +430,7 @@ fn __onScroll(handle: ?*glfw.GLFWwindow, x: f64, y: f64) callconv(.C) void {
 
 fn __onFocus(handle: ?*glfw.GLFWwindow, focused_int: c_int) callconv(.C) void {
 
-    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+    var window: *@This() = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
 
     const focused = focused_int != 0;
 
@@ -431,7 +442,7 @@ fn __onFocus(handle: ?*glfw.GLFWwindow, focused_int: c_int) callconv(.C) void {
 
 fn __onTerminationRequest(handle: ?*glfw.GLFWwindow) callconv(.C) void {
 
-    var window: *Window = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
+    var window: *@This() = @ptrCast(@alignCast(glfw.glfwGetWindowUserPointer(handle)));
 
     window.event_queue.pushBack(.{
         .termination_request = {},

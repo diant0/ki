@@ -1,5 +1,5 @@
 const std = @import("std");
-const math = @import("math.zig");
+const math = @import("module.zig");
 
 const vector = @import("vector.zig");
 

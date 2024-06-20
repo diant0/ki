@@ -1,10 +1,10 @@
 const std       = @import("std");
 const gl        = @import("glad");
 const math      = @import("math");
-const Texture   = @import("Texture.zig").Texture;
+const Texture   = @import("Texture.zig");
 const Image     = @import("image.zig").Image;
-const utf       = @import("../utf.zig");
-const Font      = @import("Font.zig").Font;
+const utf       = @import("utf.zig");
+const Font      = @import("Font.zig");
 
 pub const Vertex = struct {
     pos: @Vector(3, gl.GLfloat),
@@ -62,7 +62,7 @@ pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator, quad_capacity: us
 
     gl.glGenBuffers(1, &self.vbo);
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo);
-    gl.glBufferData(gl.GL_ARRAY_BUFFER, @intCast(@sizeOf(Vertex) * self.vertex_buffer.len), null, gl.GL_DYNAMIC_DRAW);
+    gl.glBufferStorage(gl.GL_ARRAY_BUFFER, @intCast(@sizeOf(Vertex) * self.vertex_buffer.len), null, gl.GL_DYNAMIC_STORAGE_BIT);
 
     gl.glGenBuffers(1, &self.ibo);
     gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self.ibo);
@@ -83,7 +83,7 @@ pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator, quad_capacity: us
         
         }
 
-        gl.glBufferData(gl.GL_ELEMENT_ARRAY_BUFFER, @intCast(@sizeOf(u32) * index_buffer.len), index_buffer.ptr, gl.GL_STATIC_DRAW);
+        gl.glBufferStorage(gl.GL_ELEMENT_ARRAY_BUFFER, @intCast(@sizeOf(u32) * index_buffer.len), index_buffer.ptr, 0);
 
     }
 
@@ -134,9 +134,6 @@ pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator, quad_capacity: us
             \\
             \\ void main() {
             \\   out_col = texture(samplers[int(v_sampler_index)], v_uv) * v_col;
-            \\   if (v_sampler_index > 32) {
-            \\   out_col.g = 0.0;
-            \\}
             \\ }
             ;
 
@@ -216,6 +213,11 @@ pub fn free(self: *@This()) void {
 
 pub fn draw(self: *@This()) void {
 
+    if (self.quads_to_draw == 0) return;
+
+    gl.glBindVertexArray(self.vao);
+    gl.glUseProgram(self.shader_program);
+
     gl.glEnable(gl.GL_DEPTH_CLAMP);
 
     gl.glEnable(gl.GL_BLEND);
@@ -226,8 +228,6 @@ pub fn draw(self: *@This()) void {
 
     gl.glEnable(gl.GL_CULL_FACE);
     gl.glCullFace(gl.GL_BACK);
-
-    gl.glUseProgram(self.shader_program);
 
     for (0..self.textures_to_draw) | i | {
         gl.glActiveTexture(@intCast(gl.GL_TEXTURE0 + i));
@@ -247,10 +247,9 @@ pub fn draw(self: *@This()) void {
 
     }
 
-    gl.glBindVertexArray(self.vao);
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo);
     gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self.ibo);
-    gl.glBufferData(gl.GL_ARRAY_BUFFER, @intCast(self.quads_to_draw * 4 * @sizeOf(Vertex)), self.vertex_buffer.ptr, gl.GL_DYNAMIC_DRAW);
+    gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, @intCast(self.quads_to_draw * 4 * @sizeOf(Vertex)), self.vertex_buffer.ptr);
     gl.glDrawElements(gl.GL_TRIANGLES, @intCast(self.quads_to_draw * 6), gl.GL_UNSIGNED_INT, null);
 
     self.quads_to_draw = 0;

@@ -38,6 +38,9 @@ pub usingnamespace matrix;
 const rect = @import("rect.zig");
 pub usingnamespace rect;
 
+const color = @import("color.zig");
+pub usingnamespace color;
+
 test "math.*" {
     _ = easing;
     _ = noise;

@@ -132,3 +132,16 @@ test "math.vector.vMoveTowards" {
 }
 
 // --------------------------------
+
+/// component-by-component, not respecting resulting magnitude of motion
+pub inline fn vMoveTowardsC(from: anytype, to: @TypeOf(from), max_delta_component: @typeInfo(@TypeOf(from)).Vector.child) @TypeOf(from) {
+    var result: @TypeOf(from) = undefined;
+    inline for (0..@typeInfo(@TypeOf(from)).Vector.len) | i | {
+        result[i] = math.moveTowards(from[i], to[i], max_delta_component);
+    }
+    return result;
+}
+
+// TODO: test vMoveTowardsC
+
+// --------------------------------

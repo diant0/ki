@@ -1,8 +1,8 @@
 const std       = @import("std");
 const stbtt     = @import("stb").truetype;
-const utf       = @import("../utf.zig");
+const utf       = @import("utf.zig");
 const Image     = @import("image.zig").Image;
-const Texture   = @import("Texture.zig").Texture;
+const Texture   = @import("Texture.zig");
 
 pub const default_charset = " abcdefghijklmnopqrstuvxyzABCDEFGHIJKLMNOPQRSTUVXYZ1234567890<>{}[]()-_=+*/|\\*&^%$#@?.,:;!~`\"'";
 

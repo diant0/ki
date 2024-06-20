@@ -58,17 +58,17 @@ pub fn init(self: *@This(), size: @Vector(2, u32), parameters: Parameters) void 
 
         const vertex_buffer_data = [6]Vertex {
 
-            .{ .pos = .{ -1.0, -1.0 }, .uv = .{ 0.0, 0.0 } },
-            .{ .pos = .{  1.0, -1.0 }, .uv = .{ 1.0, 0.0 } },
-            .{ .pos = .{  1.0,  1.0 }, .uv = .{ 1.0, 1.0 } },
+            .{ .pos = .{ -1.0, -1.0 }, .uv = .{ 0.0, 1.0 } },
+            .{ .pos = .{  1.0, -1.0 }, .uv = .{ 1.0, 1.0 } },
+            .{ .pos = .{  1.0,  1.0 }, .uv = .{ 1.0, 0.0 } },
         
-            .{ .pos = .{  1.0,  1.0 }, .uv = .{ 1.0, 1.0 } },
-            .{ .pos = .{ -1.0,  1.0 }, .uv = .{ 0.0, 1.0 } },
-            .{ .pos = .{ -1.0, -1.0 }, .uv = .{ 0.0, 0.0 } },
+            .{ .pos = .{  1.0,  1.0 }, .uv = .{ 1.0, 0.0 } },
+            .{ .pos = .{ -1.0,  1.0 }, .uv = .{ 0.0, 0.0 } },
+            .{ .pos = .{ -1.0, -1.0 }, .uv = .{ 0.0, 1.0 } },
 
         };
 
-        gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(vertex_buffer_data)), &vertex_buffer_data, gl.GL_STATIC_DRAW);
+        gl.glBufferStorage(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(vertex_buffer_data)), &vertex_buffer_data, 0);
 
         break :blk buffer;
 

@@ -10,9 +10,9 @@ pub fn build(b: *std.Build) !void {
 
     // lib
     const lib = b.addStaticLibrary(.{
-        .name               = "glad",
-        .target             = b.standardTargetOptions(.{}),
-        .optimize           = b.standardOptimizeOption(.{}),
+        .name = "glad",
+        .target = b.standardTargetOptions(.{}),
+        .optimize = b.standardOptimizeOption(.{}),
     });
 
     lib.linkLibC();
@@ -20,5 +20,4 @@ pub fn build(b: *std.Build) !void {
     lib.addCSourceFile(.{ .file = b.path("src/c/glad.c") });
 
     b.installArtifact(lib);
-
 }

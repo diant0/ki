@@ -12,10 +12,10 @@ const std = @import("std");
 
 // --------------------------------
 
-pub const e     = std.math.e;
-pub const pi    = std.math.pi;
-pub const phi   = std.math.phi;
-pub const tau   = 2 * pi;
+pub const e = std.math.e;
+pub const pi = std.math.pi;
+pub const phi = std.math.phi;
+pub const tau = 2 * pi;
 
 pub const deg2rad = std.math.degreesToRadians(comptime_float, 1);
 pub const rad2deg = std.math.radiansToDegrees(comptime_float, 1);
@@ -24,10 +24,10 @@ pub const rad2deg = std.math.radiansToDegrees(comptime_float, 1);
 
 const easing = @import("easing.zig");
 pub const Easing = easing.Easing;
-pub const ease   = easing.ease;
+pub const ease = easing.ease;
 
 pub const noise = @import("noise.zig");
-pub const rng   = @import("rng.zig");
+pub const rng = @import("rng.zig");
 
 const vector = @import("vector.zig");
 pub usingnamespace vector;
@@ -51,80 +51,64 @@ test "math.*" {
 // --------------------------------
 
 pub inline fn minValue(T: type) T {
-    return switch(@typeInfo(T)) {
+    return switch (@typeInfo(T)) {
         .Float => std.math.floatMin(T),
-        .Int   => std.math.minInt(T),
+        .Int => std.math.minInt(T),
         else => @compileError("math.minValue: only runtime numeric types supported"),
     };
 }
 
 pub inline fn maxValue(T: type) T {
-    return switch(@typeInfo(T)) {
+    return switch (@typeInfo(T)) {
         .Float => std.math.floatMax(T),
-        .Int   => std.math.maxInt(T),
+        .Int => std.math.maxInt(T),
         else => @compileError("math.minValue: only runtime numeric types supported"),
     };
 }
 
 test "math.[minValue, maxValue]" {
-
     _ = minValue(f32);
     _ = maxValue(f64);
-    
+
     _ = minValue(i64);
     _ = maxValue(u32);
-
 }
 
 // --------------------------------
 
 /// NOTE: rounds when casting from float to int
 pub inline fn cast(DestT: type, v: anytype) DestT {
-
     const SourceT = @TypeOf(v);
 
     return switch (@typeInfo(SourceT)) {
-
         .Int, .ComptimeInt => blk: {
-
             break :blk switch (@typeInfo(DestT)) {
-
-                .Int,   .ComptimeInt    => @intCast(v),
-                .Float, .ComptimeFloat  => @floatFromInt(v),
+                .Int, .ComptimeInt => @intCast(v),
+                .Float, .ComptimeFloat => @floatFromInt(v),
                 else => @compileError("math.cast: unexpected destination type " ++ @typeName(DestT)),
-
             };
-
         },
 
         .Float, .ComptimeFloat => blk: {
-
             break :blk switch (@typeInfo(DestT)) {
-
-                .Int,   .ComptimeInt    => @intFromFloat(round(v)),
-                .Float, .ComptimeFloat  => @floatCast(v),
+                .Int, .ComptimeInt => @intFromFloat(round(v)),
+                .Float, .ComptimeFloat => @floatCast(v),
                 else => @compileError("math.cast: unexpected destination type " ++ @typeName(DestT)),
-
             };
-        
         },
 
         else => @compileError("math.cast: unsupported source type " ++ @typeName(SourceT)),
-
     };
-
 }
 
 test "math.cast" {
-
     try std.testing.expectEqual(i32, @TypeOf(cast(i32, @as(u64, 444))));
     try std.testing.expectEqual(u32, @TypeOf(cast(u32, @as(f32, 3.4))));
     try std.testing.expectEqual(f64, @TypeOf(cast(f64, @as(f32, -22))));
     try std.testing.expectEqual(f16, @TypeOf(cast(f16, @as(i16, -12))));
 
-    try std.testing.expectEqual(comptime_int,   @TypeOf(cast(comptime_int,   @as(comptime_float, 3.3))));
+    try std.testing.expectEqual(comptime_int, @TypeOf(cast(comptime_int, @as(comptime_float, 3.3))));
     try std.testing.expectEqual(comptime_float, @TypeOf(cast(comptime_float, @as(comptime_int, 3))));
-
 }
 
 // --------------------------------
@@ -158,15 +142,13 @@ pub inline fn sign(n: anytype) @TypeOf(n) {
 }
 
 test "math.sign" {
-
-    try std.testing.expectEqual(@as(u32, 1),  sign(@as(u32,  4)));
+    try std.testing.expectEqual(@as(u32, 1), sign(@as(u32, 4)));
     try std.testing.expectEqual(@as(i32, -1), sign(@as(i32, -4)));
-    try std.testing.expectEqual(@as(f32, 1),  sign(@as(f32, 0.0000001)));
+    try std.testing.expectEqual(@as(f32, 1), sign(@as(f32, 0.0000001)));
     try std.testing.expectEqual(@as(f64, -1), sign(@as(f64, -55555555)));
 
-    try std.testing.expectEqual(-1, sign(@as(comptime_int,   -4)));
-    try std.testing.expectEqual(1,  sign(@as(comptime_float, 0.0000001)));
-
+    try std.testing.expectEqual(-1, sign(@as(comptime_int, -4)));
+    try std.testing.expectEqual(1, sign(@as(comptime_float, 0.0000001)));
 }
 
 // --------------------------------
@@ -176,15 +158,13 @@ pub inline fn abs(n: anytype) @TypeOf(n) {
 }
 
 test "math.abs" {
-
-    try std.testing.expectEqual(@as(u32, 4),    abs(@as(u32, 4)));
-    try std.testing.expectEqual(@as(i32, 4),    abs(@as(i32, -4)));
+    try std.testing.expectEqual(@as(u32, 4), abs(@as(u32, 4)));
+    try std.testing.expectEqual(@as(i32, 4), abs(@as(i32, -4)));
     try std.testing.expectEqual(@as(f32, 0.25), abs(@as(f32, 0.25)));
-    try std.testing.expectEqual(@as(f64, 2),    abs(@as(f64, -2)));
+    try std.testing.expectEqual(@as(f64, 2), abs(@as(f64, -2)));
 
-    try std.testing.expectEqual(4,    abs(@as(comptime_int,   -4)));
+    try std.testing.expectEqual(4, abs(@as(comptime_int, -4)));
     try std.testing.expectEqual(0.25, abs(@as(comptime_float, -0.25)));
-
 }
 
 // --------------------------------
@@ -198,20 +178,17 @@ pub inline fn absmax(a: anytype, b: @TypeOf(a)) @TypeOf(a) {
 }
 
 test "math.[absmin, absmax]" {
-
-    try std.testing.expectEqual(@as(f32, 0.25),  absmin(@as(f32, -2.0),  0.25));
+    try std.testing.expectEqual(@as(f32, 0.25), absmin(@as(f32, -2.0), 0.25));
     try std.testing.expectEqual(@as(i32, -2222), absmax(@as(f32, -2222), 22));
 
-    try std.testing.expectEqual(0.25,  absmin(@as(comptime_float, -2.0),  0.25));
-    try std.testing.expectEqual(-2222, absmax(@as(comptime_int,   -2222), 22));
-
+    try std.testing.expectEqual(0.25, absmin(@as(comptime_float, -2.0), 0.25));
+    try std.testing.expectEqual(-2222, absmax(@as(comptime_int, -2222), 22));
 }
 
 // --------------------------------
 
 // TODO: non-integer powers and tests
 pub inline fn pow(n: anytype, p: anytype) @TypeOf(n) {
-
     const T = @TypeOf(n);
     const E = blk: {
         const P = @TypeOf(p);
@@ -219,9 +196,7 @@ pub inline fn pow(n: anytype, p: anytype) @TypeOf(n) {
     };
 
     return switch (@typeInfo(E)) {
-
         .Int => blk: {
-
             var i: E = p;
             var r: T = 1;
 
@@ -236,22 +211,17 @@ pub inline fn pow(n: anytype, p: anytype) @TypeOf(n) {
             }
 
             break :blk r;
-
         },
 
         .Float => std.math.pow(T, n, cast(T, p)),
 
         else => @compileError("math.pow: unexpected power type " ++ @typeName(E)),
-
     };
-
 }
 
 test "math.pow" {
-
     try std.testing.expectEqual(@as(f32, 0.125), pow(@as(f32, 2), -3));
     try std.testing.expectEqual(@as(u32, 81), pow(@as(u32, 3), @as(i32, 4)));
-
 }
 
 // --------------------------------
@@ -268,7 +238,7 @@ pub inline fn trunc(n: anytype) @TypeOf(n) {
     return @trunc(n);
 }
 
-pub inline fn round(n: anytype) @TypeOf(n) {    
+pub inline fn round(n: anytype) @TypeOf(n) {
     return @round(n);
 }
 
@@ -279,10 +249,8 @@ pub inline fn fract(n: anytype) @TypeOf(n) {
 }
 
 test "math.fract" {
-
-    try std.testing.expectEqual(@as(f32, 0.5),   fract(@as(f32, 5.5)));
+    try std.testing.expectEqual(@as(f32, 0.5), fract(@as(f32, 5.5)));
     try std.testing.expectEqual(@as(f64, -0.25), fract(@as(f32, -5.25)));
-
 }
 
 // --------------------------------
@@ -294,11 +262,9 @@ pub inline fn clamp(n: anytype, lower_bound: @TypeOf(n), upper_bound: @TypeOf(n)
 }
 
 test "math.clamp" {
-
     try std.testing.expectEqual(@as(f32, 2.0), clamp(@as(f32, 1.5), 2.0, 3.0));
     try std.testing.expectEqual(@as(i32, 3), clamp(@as(i32, 5), 2, 3));
     try std.testing.expectEqual(@as(u32, 5), clamp(@as(u32, 5), 3, 6));
-
 }
 
 // --------------------------------
@@ -309,7 +275,6 @@ pub inline fn wrap(n: anytype, lower_bound: @TypeOf(n), upper_bound: @TypeOf(n))
 }
 
 test "math.wrap" {
-
     try std.testing.expectApproxEqRel(@as(f32, 0.5), wrap(@as(f32, 0.0), 0.2, 0.7), sqrt(std.math.floatEps(f32)));
     try std.testing.expectApproxEqRel(@as(f64, 0.3), wrap(@as(f64, 0.3), 0.2, 0.7), sqrt(std.math.floatEps(f64)));
     try std.testing.expectApproxEqRel(@as(f128, 0.3), wrap(@as(f128, 0.8), 0.2, 0.7), sqrt(std.math.floatEps(f64)));
@@ -317,7 +282,6 @@ test "math.wrap" {
     try std.testing.expectEqual(@as(comptime_int, 3), wrap(@as(comptime_int, 7), 0, 4));
     try std.testing.expectEqual(@as(usize, 2), wrap(@as(usize, 2), 0, 4));
     try std.testing.expectEqual(@as(i32, 1), wrap(@as(i32, -3), 0, 4));
-
 }
 
 // --------------------------------
@@ -334,11 +298,9 @@ pub inline fn quantize(n: anytype, step: @TypeOf(n)) @TypeOf(n) {
 }
 
 test "math.quantize" {
-
     try std.testing.expectEqual(@as(f32, 0.75), quantize(@as(f32, 0.8), 0.25));
     try std.testing.expectEqual(@as(i32, -3), quantize(@as(i32, -5), 3));
     try std.testing.expectEqual(@as(u32, 8), quantize(@as(u32, 11), 4));
-
 }
 
 // --------------------------------
@@ -363,9 +325,9 @@ pub inline fn tan(n: anytype) @TypeOf(n) {
 
 // --------------------------------
 
-pub const asin  = std.math.asin;
-pub const acos  = std.math.acos;
-pub const atan  = std.math.atan;
+pub const asin = std.math.asin;
+pub const acos = std.math.acos;
+pub const atan = std.math.atan;
 pub const atan2 = std.math.atan2;
 
 // --------------------------------
@@ -379,15 +341,12 @@ pub inline fn hypot(a: anytype, b: @TypeOf(a)) @TypeOf(a) {
 }
 
 test "math.hypot" {
-
     try std.testing.expectEqual(@as(f64, 5), hypot(@as(f64, 3), 4));
-
 }
 
 // --------------------------------
 
 pub inline fn lerp(lower: anytype, upper: @TypeOf(lower), t: anytype) @TypeOf(lower) {
-    
     const T = @TypeOf(lower);
     const C = @TypeOf(t);
 
@@ -395,16 +354,13 @@ pub inline fn lerp(lower: anytype, upper: @TypeOf(lower), t: anytype) @TypeOf(lo
     const rc = cast(C, lower) + cast(C, range) * t;
 
     return cast(T, rc);
-
 }
 
 test "math.lerp" {
-
-    try std.testing.expectApproxEqRel(@as(f32, 0.5),  lerp(@as(f32, 0.0), 1.0, 0.5), sqrt(std.math.floatEps(f32)));
+    try std.testing.expectApproxEqRel(@as(f32, 0.5), lerp(@as(f32, 0.0), 1.0, 0.5), sqrt(std.math.floatEps(f32)));
     try std.testing.expectApproxEqRel(@as(f64, 77.5), lerp(@as(f64, 10.0), 100.0, 0.75), sqrt(std.math.floatEps(f64)));
 
-    try std.testing.expectEqual(@as(i32, 0),    lerp(@as(i32, -10.0), 10.0, 1.0/2.0));
-
+    try std.testing.expectEqual(@as(i32, 0), lerp(@as(i32, -10.0), 10.0, 1.0 / 2.0));
 }
 
 // --------------------------------
@@ -416,7 +372,7 @@ pub fn ilerp(n: anytype, lower: @TypeOf(n), upper: @TypeOf(n), TT: type) TT {
 }
 
 test "math.ilerp" {
-    try std.testing.expectApproxEqRel(@as(f32, 0.5),  ilerp(@as(f32, 0.5), 0.0, 1.0, f32), sqrt(std.math.floatEps(f32)));
+    try std.testing.expectApproxEqRel(@as(f32, 0.5), ilerp(@as(f32, 0.5), 0.0, 1.0, f32), sqrt(std.math.floatEps(f32)));
     try std.testing.expectApproxEqRel(@as(f64, 0.75), ilerp(@as(f64, 77.5), 10.0, 100.0, f64), sqrt(std.math.floatEps(f64)));
 }
 
@@ -434,24 +390,20 @@ test "math.remap" {
 // --------------------------------
 
 pub inline fn moveTowards(from: anytype, to: @TypeOf(from), max_delta: @TypeOf(from)) @TypeOf(from) {
-
     const range = to - from;
     if (abs(range) < max_delta) {
         return to;
     }
     return from + sign(range) * max_delta;
-
 }
 
 test "math.moveTowards" {
-
-    try std.testing.expectEqual(@as(u32, 4),   moveTowards(@as(u32, 1),  10,  3));
+    try std.testing.expectEqual(@as(u32, 4), moveTowards(@as(u32, 1), 10, 3));
     try std.testing.expectEqual(@as(i32, -10), moveTowards(@as(i32, -9), -10, 3));
 
     try std.testing.expectEqual(@as(f64, 1.25), moveTowards(@as(f64, 1), 2, 0.25));
 
     try std.testing.expectEqual(@as(comptime_float, 4), moveTowards(@as(comptime_float, 3.5), 5, 0.5));
-
 }
 
 // --------------------------------

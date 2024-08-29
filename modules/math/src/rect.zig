@@ -22,7 +22,7 @@ pub inline fn rUnit(T: type) @Vector(4, T) {
 
 pub inline fn rLerpV2(rect: anytype, t: @Vector(2, @typeInfo(@TypeOf(rect)).Vector.child)) @TypeOf(t) {
     return .{
-        math.lerp(rect[0], rect[0]+rect[2], t[0]),
-        math.lerp(rect[1], rect[1]+rect[3], t[1]),
+        math.lerp(rect[0], rect[0] + rect[2], t[0]),
+        math.lerp(rect[1], rect[1] + rect[3], t[1]),
     };
 }

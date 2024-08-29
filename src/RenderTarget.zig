@@ -4,20 +4,20 @@ const math = @import("math");
 
 pub const Vertex = struct {
     pos: @Vector(2, f32),
-    uv:  @Vector(2, f32),
+    uv: @Vector(2, f32),
 };
 
-framebuffer:        gl.GLuint   = 0,
-rgba_texture:       Texture     = .{},
-depth_renderbuffer: gl.GLuint   = 0,
-shader_program:     gl.GLuint   = 0,
-vao:                gl.GLuint   = 0,
-vbo:                gl.GLuint   = 0,
-rgba_texture_loc:   gl.GLint    = 0,
-transform_loc:      gl.GLint    = 0,
+framebuffer: gl.GLuint = 0,
+rgba_texture: Texture = .{},
+depth_renderbuffer: gl.GLuint = 0,
+shader_program: gl.GLuint = 0,
+vao: gl.GLuint = 0,
+vbo: gl.GLuint = 0,
+rgba_texture_loc: gl.GLint = 0,
+transform_loc: gl.GLint = 0,
 
 reference_resolution: @Vector(2, f32) = .{ 1920, 1080 },
-reference_scale:      @Vector(2, f32) = @splat(0),
+reference_scale: @Vector(2, f32) = @splat(0),
 
 pub const Parameters = struct {
     filter_min: Texture.FilterMin = .Nearest,
@@ -25,7 +25,6 @@ pub const Parameters = struct {
 };
 
 pub fn init(self: *@This(), size: @Vector(2, u32), parameters: Parameters) void {
-
     gl.glGenFramebuffers(1, &self.framebuffer);
     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self.framebuffer);
 
@@ -43,7 +42,7 @@ pub fn init(self: *@This(), size: @Vector(2, u32), parameters: Parameters) void 
     gl.glFramebufferTexture(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0, self.rgba_texture.id, 0);
     gl.glFramebufferRenderbuffer(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_RENDERBUFFER, self.depth_renderbuffer);
 
-    gl.glDrawBuffers(1, &[_]gl.GLenum { gl.GL_COLOR_ATTACHMENT0 });
+    gl.glDrawBuffers(1, &[_]gl.GLenum{gl.GL_COLOR_ATTACHMENT0});
 
     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0);
 
@@ -51,31 +50,26 @@ pub fn init(self: *@This(), size: @Vector(2, u32), parameters: Parameters) void 
     gl.glBindVertexArray(self.vao);
 
     self.vbo = blk: {
-
         var buffer: gl.GLuint = undefined;
         gl.glGenBuffers(1, &buffer);
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, buffer);
 
-        const vertex_buffer_data = [6]Vertex {
-
+        const vertex_buffer_data = [6]Vertex{
             .{ .pos = .{ -1.0, -1.0 }, .uv = .{ 0.0, 1.0 } },
-            .{ .pos = .{  1.0, -1.0 }, .uv = .{ 1.0, 1.0 } },
-            .{ .pos = .{  1.0,  1.0 }, .uv = .{ 1.0, 0.0 } },
-        
-            .{ .pos = .{  1.0,  1.0 }, .uv = .{ 1.0, 0.0 } },
-            .{ .pos = .{ -1.0,  1.0 }, .uv = .{ 0.0, 0.0 } },
-            .{ .pos = .{ -1.0, -1.0 }, .uv = .{ 0.0, 1.0 } },
+            .{ .pos = .{ 1.0, -1.0 }, .uv = .{ 1.0, 1.0 } },
+            .{ .pos = .{ 1.0, 1.0 }, .uv = .{ 1.0, 0.0 } },
 
+            .{ .pos = .{ 1.0, 1.0 }, .uv = .{ 1.0, 0.0 } },
+            .{ .pos = .{ -1.0, 1.0 }, .uv = .{ 0.0, 0.0 } },
+            .{ .pos = .{ -1.0, -1.0 }, .uv = .{ 0.0, 1.0 } },
         };
 
         gl.glBufferStorage(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(vertex_buffer_data)), &vertex_buffer_data, 0);
 
         break :blk buffer;
-
     };
 
     self.shader_program = blk: {
-
         const vertex_shader_src: [*c]const u8 =
             \\ #version 330 core
             \\
@@ -108,7 +102,7 @@ pub fn init(self: *@This(), size: @Vector(2, u32), parameters: Parameters) void 
             \\ void main() {
             \\   out_col = texture(rgba_texture, v_uv);
             \\ }
-            ;
+        ;
 
         const fragment_shader = gl.glCreateShader(gl.GL_FRAGMENT_SHADER);
         gl.glShaderSource(fragment_shader, 1, &fragment_shader_src, null);
@@ -128,7 +122,6 @@ pub fn init(self: *@This(), size: @Vector(2, u32), parameters: Parameters) void 
         gl.glDeleteShader(fragment_shader);
 
         break :blk program;
-
     };
 
     const pos_vertex_attrib_location: gl.GLuint = @intCast(gl.glGetAttribLocation(self.shader_program, "pos"));
@@ -140,8 +133,7 @@ pub fn init(self: *@This(), size: @Vector(2, u32), parameters: Parameters) void 
     gl.glVertexAttribPointer(uv_vertex_attrib_location, 2, gl.GL_FLOAT, gl.GL_FALSE, @sizeOf(Vertex), @ptrFromInt(@offsetOf(Vertex, "uv")));
 
     self.rgba_texture_loc = gl.glGetUniformLocation(self.shader_program, "rgba_texture");
-    self.transform_loc    = gl.glGetUniformLocation(self.shader_program, "transform");
-
+    self.transform_loc = gl.glGetUniformLocation(self.shader_program, "transform");
 }
 
 pub fn free(self: *const @This()) void {
@@ -154,7 +146,6 @@ pub fn free(self: *const @This()) void {
 }
 
 pub fn resize(self: *@This(), size: @Vector(2, u32)) void {
-
     if (@reduce(.And, size == self.rgba_texture.size)) {
         return;
     }
@@ -166,7 +157,6 @@ pub fn resize(self: *@This(), size: @Vector(2, u32)) void {
     gl.glRenderbufferStorage(gl.GL_RENDERBUFFER, gl.GL_DEPTH_COMPONENT, @intCast(size[0]), @intCast(size[1]));
 
     self.reference_scale = @as(@Vector(2, f32), @floatFromInt(size)) / self.reference_resolution;
-
 }
 
 pub fn bind(self: *const @This()) void {
@@ -179,7 +169,6 @@ pub fn unbind(_: *const @This()) void {
 }
 
 pub fn presentScaled(self: *@This(), target_size: @Vector(2, u32)) void {
-
     gl.glViewport(0, 0, @intCast(target_size[0]), @intCast(target_size[1]));
     gl.glUseProgram(self.shader_program);
 
@@ -193,16 +182,14 @@ pub fn presentScaled(self: *@This(), target_size: @Vector(2, u32)) void {
     gl.glUniform1i(self.rgba_texture_loc, 0);
 
     gl.glDrawArrays(gl.GL_TRIANGLES, 0, 6);
-
 }
 
 pub fn presentLetterboxed(self: *@This(), target_size: @Vector(2, u32)) void {
-
     gl.glViewport(0, 0, @intCast(target_size[0]), @intCast(target_size[1]));
     gl.glUseProgram(self.shader_program);
 
-    const aspect        = @as(f32, @floatFromInt(self.rgba_texture.size[0])) / @as(f32, @floatFromInt(self.rgba_texture.size[1]));
-    const target_aspect = @as(f32, @floatFromInt(target_size[0]))           / @as(f32, @floatFromInt(target_size[1]));
+    const aspect = @as(f32, @floatFromInt(self.rgba_texture.size[0])) / @as(f32, @floatFromInt(self.rgba_texture.size[1]));
+    const target_aspect = @as(f32, @floatFromInt(target_size[0])) / @as(f32, @floatFromInt(target_size[1]));
 
     var scale: @Vector(2, f32) = @splat(1);
 
@@ -223,5 +210,4 @@ pub fn presentLetterboxed(self: *@This(), target_size: @Vector(2, u32)) void {
     gl.glUniform1i(self.rgba_texture_loc, 0);
 
     gl.glDrawArrays(gl.GL_TRIANGLES, 0, 6);
-
 }

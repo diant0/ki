@@ -1,13 +1,11 @@
 const math = @import("math");
 
 pub fn Timer(T: type) type {
-
     return struct {
-
         timeout_time: T,
         time_left: T = 0,
 
-        active:  bool = false,
+        active: bool = false,
         looping: bool = false,
 
         timeouts_last_update: usize = 0,
@@ -28,7 +26,5 @@ pub fn Timer(T: type) type {
         pub fn progress(self: *const @This()) T {
             return math.clamp(self.timeout_time / self.time_left, 0, 1);
         }
-
     };
-
 }

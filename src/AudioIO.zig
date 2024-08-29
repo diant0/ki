@@ -12,7 +12,6 @@ device: miniaudio.ma_device = undefined,
 output: AudioOutput = .{},
 
 pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator) !void {
-
     try self.output.initAlloc(allocator);
 
     const device_config = blk: {
@@ -34,7 +33,6 @@ pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator) !void {
     if (device_start_result != miniaudio.MA_SUCCESS) {
         return error.MiniaudioDeviceInitFailed;
     }
-
 }
 
 pub fn terminateFree(self: *@This()) void {
@@ -44,19 +42,17 @@ pub fn terminateFree(self: *@This()) void {
 }
 
 fn audioDataCallback(device: [*c]miniaudio.ma_device, output_opaque: ?*anyopaque, _: ?*const anyopaque, frame_count: miniaudio.ma_uint32) callconv(.C) void {
-
     switch (miniaudio.ma_device_get_state(device)) {
         miniaudio.ma_device_state_starting, miniaudio.ma_device_state_stopping => return,
         else => {},
     }
 
-    const audio_io: *@This() = if (device[0].pUserData) | ptr | @ptrCast(@alignCast(ptr)) else {
+    const audio_io: *@This() = if (device[0].pUserData) |ptr| @ptrCast(@alignCast(ptr)) else {
         log.print(.Error, "could not retrieve audio device data\n", .{});
         return;
     };
 
-    const output: []SampleT = @as([*]SampleT, @ptrCast(@alignCast(output_opaque orelse return)))[0..frame_count*channels];
+    const output: []SampleT = @as([*]SampleT, @ptrCast(@alignCast(output_opaque orelse return)))[0 .. frame_count * channels];
 
     audio_io.output.sumToBufferAdvance(output);
-
 }

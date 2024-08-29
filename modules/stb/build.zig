@@ -22,20 +22,20 @@ pub fn build(b: *std.Build) !void {
 
     // lib
     const lib = b.addStaticLibrary(.{
-        .name               = "stb",
-        .target             = b.standardTargetOptions(.{}),
-        .optimize           = b.standardOptimizeOption(.{}),
+        .name = "stb",
+        .target = b.standardTargetOptions(.{}),
+        .optimize = b.standardOptimizeOption(.{}),
     });
 
     lib.linkLibC();
     lib.addIncludePath(b.path("src/stb"));
 
     if (build_stb_image) {
-        lib.addCSourceFile(.{ .file = b.path("src/c/stb_image.c" ) });
+        lib.addCSourceFile(.{ .file = b.path("src/c/stb_image.c") });
     }
 
     if (build_stb_image_write) {
-        lib.addCSourceFile(.{ .file = b.path("src/c/stb_image_write.c" ) });
+        lib.addCSourceFile(.{ .file = b.path("src/c/stb_image_write.c") });
     }
 
     if (build_stb_truetype) {
@@ -43,5 +43,4 @@ pub fn build(b: *std.Build) !void {
     }
 
     b.installArtifact(lib);
-
 }

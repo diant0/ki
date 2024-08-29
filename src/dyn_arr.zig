@@ -4,11 +4,9 @@ pub fn DynArr(T: type, config: struct {
     auto_shrink_capacity: bool = true,
     min_capacity: usize = 4,
 }) type {
-
     const PopReturnType = if (config.auto_shrink_capacity) anyerror!?T else ?T;
 
     return struct {
-        
         allocator: std.mem.Allocator = undefined,
         buffer: []T = &[_]T{},
 
@@ -16,11 +14,9 @@ pub fn DynArr(T: type, config: struct {
         item_count: usize = 0,
 
         pub fn init(self: *@This(), allocator: std.mem.Allocator) !void {
-
             self.buffer = try allocator.alloc(T, config.min_capacity);
             self.allocator = allocator;
             self.clear();
-
         }
 
         pub fn free(self: *const @This()) void {
@@ -47,7 +43,7 @@ pub fn DynArr(T: type, config: struct {
         }
 
         pub inline fn items(self: *const @This()) []T {
-            return self.buffer[self.buffer_offset..(self.buffer_offset+self.item_count)];
+            return self.buffer[self.buffer_offset..(self.buffer_offset + self.item_count)];
         }
 
         pub fn resizeCapacity(self: *@This(), new_capacity: usize) !void {
@@ -61,8 +57,8 @@ pub fn DynArr(T: type, config: struct {
         }
 
         pub fn packBack(self: *@This()) void {
-            std.mem.copyBackwards(T, self.buffer[self.buffer.len-self.item_count..self.buffer.len], self.items());
-            self.buffer_offset = self.buffer.len-self.item_count;
+            std.mem.copyBackwards(T, self.buffer[self.buffer.len - self.item_count .. self.buffer.len], self.items());
+            self.buffer_offset = self.buffer.len - self.item_count;
         }
 
         pub fn packFront(self: *@This()) void {
@@ -71,7 +67,6 @@ pub fn DynArr(T: type, config: struct {
         }
 
         pub fn pushBack(self: *@This(), value: T) !void {
-
             if (self.item_count + 1 == self.buffer.len) {
                 try self.resizeCapacity(self.buffer.len * 2);
             }
@@ -82,11 +77,9 @@ pub fn DynArr(T: type, config: struct {
 
             self.buffer[self.buffer_offset + self.item_count] = value;
             self.item_count += 1;
-
         }
 
         pub fn pushFront(self: *@This(), value: T) !void {
-
             if (self.item_count + 1 == self.buffer.len) {
                 try self.resizeCapacity(self.buffer.len * 2);
             }
@@ -95,19 +88,17 @@ pub fn DynArr(T: type, config: struct {
                 self.packBack();
             }
 
-            self.buffer[self.buffer_offset-1] = value;
+            self.buffer[self.buffer_offset - 1] = value;
             self.buffer_offset -= 1;
             self.item_count += 1;
-
         }
 
         pub fn popBack(self: *@This()) PopReturnType {
-            
             if (self.item_count == 0) {
                 return null;
             }
 
-            const value = self.buffer[self.buffer_offset+self.item_count-1];
+            const value = self.buffer[self.buffer_offset + self.item_count - 1];
             self.item_count -= 1;
 
             if (config.auto_shrink_capacity) {
@@ -115,11 +106,9 @@ pub fn DynArr(T: type, config: struct {
             }
 
             return value;
-
         }
 
         pub fn popFront(self: *@This()) PopReturnType {
-
             if (self.item_count == 0) {
                 return null;
             }
@@ -128,17 +117,14 @@ pub fn DynArr(T: type, config: struct {
             self.buffer_offset += 1;
             self.item_count -= 1;
 
-
             if (config.auto_shrink_capacity) {
                 try self.shrinkCapacityIfNeeded();
             }
 
             return value;
-
         }
 
         pub fn insertAt(self: *@This(), index: usize, value: T) !void {
-
             if (self.item_count == 0 and index == 0) {
                 try self.pushBack(value);
                 return;
@@ -152,31 +138,25 @@ pub fn DynArr(T: type, config: struct {
                 try self.resizeCapacity(self.buffer.len * 2);
             }
 
-            if (self.buffer_offset+self.item_count+1 > self.buffer.len) {
+            if (self.buffer_offset + self.item_count + 1 > self.buffer.len) {
                 self.packFront();
             }
 
             const shift_right = self.buffer_offset == 0 or index > self.item_count / 2;
 
             if (shift_right) {
-                std.mem.copyBackwards(T,
-                    self.buffer[self.buffer_offset+index+1..self.buffer_offset+self.item_count+1],
-                    self.buffer[self.buffer_offset+index..self.buffer_offset+self.item_count]);
+                std.mem.copyBackwards(T, self.buffer[self.buffer_offset + index + 1 .. self.buffer_offset + self.item_count + 1], self.buffer[self.buffer_offset + index .. self.buffer_offset + self.item_count]);
                 self.item_count += 1;
-                self.buffer[self.buffer_offset+index] = value;
+                self.buffer[self.buffer_offset + index] = value;
             } else {
-                std.mem.copyForwards(T,
-                    self.buffer[self.buffer_offset-1..self.buffer_offset+index-1],
-                    self.buffer[self.buffer_offset..self.buffer_offset+index]);
+                std.mem.copyForwards(T, self.buffer[self.buffer_offset - 1 .. self.buffer_offset + index - 1], self.buffer[self.buffer_offset .. self.buffer_offset + index]);
                 self.item_count += 1;
                 self.buffer_offset -= 1;
-                self.buffer[self.buffer_offset+index] = value;
+                self.buffer[self.buffer_offset + index] = value;
             }
-
         }
 
         pub fn pluckFrom(self: *@This(), index: usize) PopReturnType {
-
             if (index == 0) {
                 return self.popFront();
             }
@@ -189,20 +169,15 @@ pub fn DynArr(T: type, config: struct {
                 return null;
             }
 
-            const value = self.buffer[self.buffer_offset+index];
+            const value = self.buffer[self.buffer_offset + index];
 
             const shift_left = self.buffer_offset == 0 or index > self.item_count / 2;
 
             if (shift_left) {
-                std.mem.copyForwards(T,
-                    self.buffer[self.buffer_offset+index..self.buffer_offset+self.item_count-1],
-                    self.buffer[self.buffer_offset+index+1..self.buffer_offset+self.item_count]);
+                std.mem.copyForwards(T, self.buffer[self.buffer_offset + index .. self.buffer_offset + self.item_count - 1], self.buffer[self.buffer_offset + index + 1 .. self.buffer_offset + self.item_count]);
                 self.item_count -= 1;
             } else {
-                std.mem.copyBackwards(T,
-                    self.buffer[self.buffer_offset+1..self.buffer_offset+index],
-                    self.buffer[self.buffer_offset..self.buffer_offset+index-1]
-                );
+                std.mem.copyBackwards(T, self.buffer[self.buffer_offset + 1 .. self.buffer_offset + index], self.buffer[self.buffer_offset .. self.buffer_offset + index - 1]);
                 self.buffer_offset += 1;
                 self.item_count -= 1;
             }
@@ -212,9 +187,6 @@ pub fn DynArr(T: type, config: struct {
             }
 
             return value;
-
         }
-
     };
-
 }

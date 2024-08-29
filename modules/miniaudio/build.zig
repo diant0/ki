@@ -10,15 +10,14 @@ pub fn build(b: *std.Build) !void {
 
     // lib
     const lib = b.addStaticLibrary(.{
-        .name               = "miniaudio",
-        .target             = b.standardTargetOptions(.{}),
-        .optimize           = b.standardOptimizeOption(.{}),
+        .name = "miniaudio",
+        .target = b.standardTargetOptions(.{}),
+        .optimize = b.standardOptimizeOption(.{}),
     });
 
     lib.linkLibC();
     lib.addIncludePath(b.path("src/miniaudio"));
-    lib.addCSourceFile(.{ .file = b.path("src/c/miniaudio.c")});
+    lib.addCSourceFile(.{ .file = b.path("src/c/miniaudio.c") });
 
     b.installArtifact(lib);
-
 }

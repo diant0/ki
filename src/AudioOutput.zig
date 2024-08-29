@@ -25,7 +25,6 @@ const PlayOptions = struct {
 };
 
 pub fn play(self: *@This(), audio: AudioSource, play_options: PlayOptions) !void {
-    
     const player: AudioPlayer = .{
         .source = audio,
         .cursor = play_options.starting_cursor,
@@ -34,28 +33,25 @@ pub fn play(self: *@This(), audio: AudioSource, play_options: PlayOptions) !void
         .loop = play_options.loop,
     };
 
-    for (self.players.items(), 0..) | audio_player_slot, i | {
+    for (self.players.items(), 0..) |audio_player_slot, i| {
         if (audio_player_slot == null) {
             self.players.items()[i] = player;
             break;
         }
     } else try self.players.pushBack(player);
-
 }
 
 pub fn sumToBufferAdvance(self: *@This(), buffer: []AudioIO.SampleT) void {
-
-    for (self.children.items()) | *child | {
+    for (self.children.items()) |*child| {
         child.sumToBufferAdvance(buffer);
     }
 
-    for (self.players.items(), 0..) | _, i | {
-        if (self.players.items()[i]) | *audio_player | {
+    for (self.players.items(), 0..) |_, i| {
+        if (self.players.items()[i]) |*audio_player| {
             const advanced_by = audio_player.sumToBufferAdvance(buffer);
             if (advanced_by < buffer.len and !audio_player.loop) {
                 self.players.items()[i] = null;
             }
         }
     }
-    
 }

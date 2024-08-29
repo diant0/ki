@@ -15,10 +15,10 @@
             .path = "modules/stb",
         },
         .qoi = .{
-            .path = "modules/qoi"
+            .path = "modules/qoi",
         },
         .miniaudio = .{
-            .path = "modules/miniaudio"
+            .path = "modules/miniaudio",
         },
     },
     .paths = .{

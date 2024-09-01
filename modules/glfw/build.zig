@@ -126,7 +126,7 @@ pub fn build(b: *std.Build) !void {
 fn generateWaylandHeaders(b: *std.Build, cache_subpath: []const u8) !void {
     try b.cache_root.handle.makePath(cache_subpath);
 
-    const wayland_scanner_program = try b.findProgram(&.{"wayland-scanner"}, &.{""});
+    const wayland_scanner_program = b.findProgram(&.{"wayland-scanner"}, &.{""}) catch return error.CouldNotFindWaylandScanner;
 
     const protocols_dir_path = try b.build_root.handle.realpathAlloc(b.allocator, "src/glfw/deps/wayland");
     defer b.allocator.free(protocols_dir_path);
@@ -237,7 +237,10 @@ fn collectSystemHeaders(b: *std.Build, cache_subpath: []const u8, wayland: bool,
             var src_path_buf: [std.fs.max_path_bytes]u8 = undefined;
             const src_path = try std.fmt.bufPrint(&src_path_buf, "/usr/include/{s}", .{header});
 
-            try std.fs.copyFileAbsolute(src_path, dest_path, .{});
+            std.fs.copyFileAbsolute(src_path, dest_path, .{}) catch |e| {
+                std.debug.print("could not copy system header \"{s}\"\n", .{src_path});
+                return e;
+            };
         }
     }
 }

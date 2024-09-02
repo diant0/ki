@@ -272,22 +272,22 @@ pub fn putRectSubtexture(self: *@This(), texture: Texture, uv_rect: @Vector(4, f
     try self.putQuadVertices(.{
         .pos = math.v3Fromv2(math.rBottomLeft(rect), z),
         .col = col,
-        .uv = math.rTopLeft(uv_rect),
+        .uv = math.rBottomLeft(uv_rect),
         .sampler_index = sampler_index,
     }, .{
         .pos = math.v3Fromv2(math.rBottomRight(rect), z),
         .col = col,
-        .uv = math.rTopRight(uv_rect),
+        .uv = math.rBottomRight(uv_rect),
         .sampler_index = sampler_index,
     }, .{
         .pos = math.v3Fromv2(math.rTopRight(rect), z),
         .col = col,
-        .uv = math.rBottomRight(uv_rect),
+        .uv = math.rTopRight(uv_rect),
         .sampler_index = sampler_index,
     }, .{
         .pos = math.v3Fromv2(math.rTopLeft(rect), z),
         .col = col,
-        .uv = math.rBottomLeft(uv_rect),
+        .uv = math.rTopLeft(uv_rect),
         .sampler_index = sampler_index,
     });
 }

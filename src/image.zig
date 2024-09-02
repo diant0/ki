@@ -1,5 +1,7 @@
 const std = @import("std");
-const log = @import("../log.zig");
+
+// TODO: bufDecode versions
+// TODO: maybe vertically flip not on load, but when passing to gpu?
 
 pub fn Image(ComponentT: type) type {
     return struct {
@@ -80,13 +82,16 @@ pub fn Image(ComponentT: type) type {
             var h: c_int = undefined;
             var c: c_int = undefined;
 
-            const decoded = load_func(bytes.ptr, @intCast(bytes.len), &w, &h, &c, @intFromEnum(desired_components)) orelse return error.STBILoadFromMemReturnedNull;
-            defer stbi.stbi_image_free(decoded);
+            const decoded_cptr = load_func(bytes.ptr, @intCast(bytes.len), &w, &h, &c, @intFromEnum(desired_components)) orelse return error.STBILoadFromMemReturnedNull;
+            defer stbi.stbi_image_free(decoded_cptr);
+
+            const decoded = decoded_cptr[0..@intCast(w * h * c)];
+            const decoded_flipped = try flipVerticallyAlloc(allocator, ComponentT, decoded, .{ @intCast(w), @intCast(h) }, @intCast(c));
 
             return .{
                 .size = [_]u32{ @intCast(w), @intCast(h) },
                 .components_per_pixel = @intCast(c),
-                .data = try allocator.dupe(ComponentT, decoded[0..@intCast(w * h * c)]),
+                .data = decoded_flipped,
             };
         }
 
@@ -94,19 +99,17 @@ pub fn Image(ComponentT: type) type {
         /// stbiw will perform temporary allocations
         /// some temporary allocations will be performed with passed allocator, no need to free anything
         pub fn stbiwEncodeToPathRelToExeTempAlloc(self: *const @This(), allocator: std.mem.Allocator, path: []const u8, format: STBIWFormat) !void {
-            const exe_dir_path = try std.fs.selfExeDirPathAlloc(allocator);
-            defer allocator.free(exe_dir_path);
+            var exe_dir_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+            const exe_dir_path = try std.fs.selfExeDirPath(&exe_dir_path_buffer);
 
-            var abs_path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+            var abs_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
             const abs_path = try std.fmt.bufPrint(&abs_path_buffer, "{s}/{s}", .{ exe_dir_path, path });
-            const abs_path_heap = try allocator.dupe(u8, abs_path);
-            defer allocator.free(abs_path_heap);
 
-            try self.stbiwEncodeToAbsPath(abs_path, format);
+            try self.stbiwEncodeToAbsPathTempAlloc(allocator, abs_path, format);
         }
 
         /// stbiw will perform temporary allocations
-        pub fn stbiwEncodeToAbsPath(self: *const @This(), path: []const u8, format: STBIWFormat) !void {
+        pub fn stbiwEncodeToAbsPathTempAlloc(self: *const @This(), allocator: std.mem.Allocator, path: []const u8, format: STBIWFormat) !void {
             const file = std.fs.createFileAbsolute(path, .{}) catch |e| blk: {
                 if (e == error.PathAlreadyExists) {
                     break :blk try std.fs.openFileAbsolute(path, .{ .mode = .write_only });
@@ -115,82 +118,56 @@ pub fn Image(ComponentT: type) type {
             defer file.close();
             errdefer std.fs.deleteFileAbsolute(path) catch {};
 
-            try self.stbiwEncodeToFile(file, format);
+            try self.stbiwEncodeToFileTempAlloc(allocator, file, format);
         }
 
         /// stbiw will perform temporary allocations
-        pub fn stbiwEncodeToFile(self: *const @This(), file: std.fs.File, format: STBIWFormat) !void {
-            const writeToFileCallback = struct {
-                fn f(context: ?*anyopaque, data_ptr_opt: ?*anyopaque, data_len: c_int) callconv(.C) void {
-                    const out_file: *std.fs.File = @alignCast(@ptrCast(context orelse {
-                        log.print(.Error, "stb_image_write: recieved null context in encoding callback\n", .{});
-                        return;
-                    }));
-                    if (data_ptr_opt) |data_ptr| {
-                        const data = @as([*]const u8, @ptrCast(data_ptr))[0..@intCast(data_len)];
-                        out_file.writeAll(data) catch {
-                            log.print(.Error, "stb_image_write: could not write encoded bytes to file\n", .{});
-                        };
-                    } else {
-                        log.print(.Error, "stb_image_write: recieved null data in encoding callback\n", .{});
-                        return;
-                    }
-                }
-            }.f;
+        pub fn stbiwEncodeToFileTempAlloc(self: *const @This(), allocator: std.mem.Allocator, file: std.fs.File, format: STBIWFormat) !void {
+            const encoded = try self.stbiwEncodeToMemAlloc(allocator, format);
+            defer allocator.free(encoded);
 
-            try self.stbiwInvokeEncodeCallback(writeToFileCallback, @constCast(&file), format);
+            try file.writeAll(encoded);
         }
 
         /// returned slice needs to be freed.
         /// stbiw will perform temporary allocations
         pub fn stbiwEncodeToMemAlloc(self: *const @This(), allocator: std.mem.Allocator, format: STBIWFormat) ![]const u8 {
+            const flipped = try flipVerticallyAlloc(allocator, ComponentT, self.data, self.size, self.components_per_pixel);
+            defer allocator.free(flipped);
+
             const allocCallback = struct {
                 fn f(context: ?*anyopaque, data_ptr_opt: ?*anyopaque, data_len: c_int) callconv(.C) void {
-                    const list: *std.ArrayList(u8) = @alignCast(@ptrCast(context orelse {
-                        log.print(.Error, "stb_image_write: recieved null context in encoding callback\n", .{});
-                        return;
-                    }));
+                    const list: *std.ArrayList(u8) = @alignCast(@ptrCast(context orelse return));
                     if (data_ptr_opt) |data_ptr| {
                         const data = @as([*]const u8, @ptrCast(data_ptr))[0..@intCast(data_len)];
-                        list.ensureTotalCapacity(data.len) catch {
-                            log.print(.Error, "stb_image_write: could not reserve needed capacity for encoded memory\n", .{});
-                        };
-                        list.appendSlice(data) catch {
-                            log.print(.Error, "stb_image_write: could not append encoded bytes to accumulator\n", .{});
-                        };
-                    } else {
-                        log.print(.Error, "stb_image_write: recieved null data in encoding callback\n", .{});
-                        return;
+                        list.ensureTotalCapacity(data.len) catch {};
+                        list.appendSlice(data) catch {};
                     }
                 }
             }.f;
 
             var accumulator = std.ArrayList(u8).init(allocator);
-            try self.stbiwInvokeEncodeCallback(allocCallback, &accumulator, format);
-            return accumulator.toOwnedSlice();
+            defer accumulator.deinit();
+            try stbiwInvokeEncodeCallback(allocCallback, flipped, self.size, self.components_per_pixel, &accumulator, format);
+            if (accumulator.items.len == 0) return error.NoDataInEncodeAccumulator;
+
+            return try accumulator.toOwnedSlice();
         }
 
-        pub fn stbiwInvokeEncodeCallback(self: *const @This(), callback: *const fn (context: ?*anyopaque, data_ptr_opt: ?*anyopaque, data_len: c_int) callconv(.C) void, context: ?*anyopaque, format: STBIWFormat) !void {
+        fn stbiwInvokeEncodeCallback(callback: *const fn (context: ?*anyopaque, data_ptr_opt: ?*anyopaque, data_len: c_int) callconv(.C) void, data: []const ComponentT, size: @Vector(2, u32), components_per_pixel: usize, context: ?*anyopaque, format: STBIWFormat) !void {
             const stbiw = @import("stb").image_write;
             const stbiw_retcode = switch (ComponentT) {
                 u8 => switch (format) {
-                    .png => stbiw.stbi_write_png_to_func(callback, context, @intCast(self.size[0]), @intCast(self.size[1]), @intCast(self.components_per_pixel), self.data.ptr, @intCast(self.size[0] * self.components_per_pixel * @sizeOf(ComponentT))),
-
-                    .bmp => stbiw.stbi_write_bmp_to_func(callback, context, @intCast(self.size[0]), @intCast(self.size[1]), @intCast(self.components_per_pixel), self.data.ptr),
-
-                    .tga => stbiw.stbi_write_tga_to_func(callback, context, @intCast(self.size[0]), @intCast(self.size[1]), @intCast(self.components_per_pixel), self.data.ptr),
-
-                    .jpg => stbiw.stbi_write_jpg_to_func(callback, context, @intCast(self.size[0]), @intCast(self.size[1]), @intCast(self.components_per_pixel), self.data.ptr, 100),
-
+                    .png => stbiw.stbi_write_png_to_func(callback, context, @intCast(size[0]), @intCast(size[1]), @intCast(components_per_pixel), data.ptr, @intCast(size[0] * components_per_pixel * @sizeOf(ComponentT))),
+                    .bmp => stbiw.stbi_write_bmp_to_func(callback, context, @intCast(size[0]), @intCast(size[1]), @intCast(components_per_pixel), data.ptr),
+                    .tga => stbiw.stbi_write_tga_to_func(callback, context, @intCast(size[0]), @intCast(size[1]), @intCast(components_per_pixel), data.ptr),
+                    .jpg => stbiw.stbi_write_jpg_to_func(callback, context, @intCast(size[0]), @intCast(size[1]), @intCast(components_per_pixel), data.ptr, 100),
                     else => return error.STBIWIncorrectFormatForComponentTypeU8,
                 },
-
                 f32 => switch (format) {
-                    .hdr => stbiw.stbi_write_hdr_to_func(callback, context, @intCast(self.size[0]), @intCast(self.size[1]), @intCast(self.components_per_pixel), self.data.ptr),
-
+                    .hdr => stbiw.stbi_write_hdr_to_func(callback, context, @intCast(size[0]), @intCast(size[1]), @intCast(components_per_pixel), data.ptr),
                     else => return error.STBIWIncorrectFormatForComponentTypeF32,
                 },
-
                 else => return error.STBIWUnsupportedComponentType,
             };
 
@@ -242,16 +219,17 @@ pub fn Image(ComponentT: type) type {
             const qoi = @import("qoi");
 
             var desc: qoi.qoi_desc = undefined;
-            const decoded = qoi.qoi_decode(bytes.ptr, @intCast(bytes.len), &desc, @intFromEnum(desired_components)) orelse return error.QOIDecodeReturnedNull;
+            const decoded_cptr = qoi.qoi_decode(bytes.ptr, @intCast(bytes.len), &desc, @intFromEnum(desired_components)) orelse return error.QOIDecodeReturnedNull;
             // NOTE: requires QOI_FREE() to be libc free()
-            defer std.c.free(decoded);
+            defer std.c.free(decoded_cptr);
 
-            const data = @as([*]u8, @ptrCast(decoded))[0..@intCast(desc.width * desc.height * desc.channels)];
+            const decoded = @as([*]u8, @ptrCast(decoded_cptr))[0..@intCast(desc.width * desc.height * desc.channels)];
+            const decoded_flipped = try flipVerticallyAlloc(allocator, ComponentT, decoded, .{ @intCast(desc.width), @intCast(desc.height) }, @intCast(desc.channels));
 
             return .{
                 .size = [_]u32{ desc.width, desc.height },
                 .components_per_pixel = @intCast(desc.channels),
-                .data = try allocator.dupe(u8, data),
+                .data = decoded_flipped,
             };
         }
 
@@ -261,16 +239,16 @@ pub fn Image(ComponentT: type) type {
             const exe_dir_path = try std.fs.selfExeDirPathAlloc(allocator);
             defer allocator.free(exe_dir_path);
 
-            var abs_path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+            var abs_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
             const abs_path = try std.fmt.bufPrint(&abs_path_buffer, "{s}/{s}", .{ exe_dir_path, path });
             const abs_path_heap = try allocator.dupe(u8, abs_path);
             defer allocator.free(abs_path_heap);
 
-            try self.qoiEncodeToAbsPath(abs_path);
+            try self.qoiEncodeToAbsPathTempAlloc(allocator, abs_path);
         }
 
         /// qoi will perform temporary allocations
-        pub fn qoiEncodeToAbsPath(self: *const @This(), path: []const u8) !void {
+        pub fn qoiEncodeToAbsPathTempAlloc(self: *const @This(), allocator: std.mem.Allocator, path: []const u8) !void {
             const file = std.fs.createFileAbsolute(path, .{}) catch |e| blk: {
                 if (e == error.PathAlreadyExists) {
                     break :blk try std.fs.openFileAbsolute(path, .{ .mode = .write_only });
@@ -279,26 +257,15 @@ pub fn Image(ComponentT: type) type {
             defer file.close();
             errdefer std.fs.deleteFileAbsolute(path) catch {};
 
-            try self.qoiEncodeToFile(file);
+            try self.qoiEncodeToFileTempAlloc(allocator, file);
         }
 
         /// qoi will perform temporary allocations
-        pub fn qoiEncodeToFile(self: *const @This(), file: std.fs.File) !void {
-            const qoi = @import("qoi");
+        pub fn qoiEncodeToFileTempAlloc(self: *const @This(), allocator: std.mem.Allocator, file: std.fs.File) !void {
+            const encoded = try self.qoiEncodeToMemAlloc(allocator);
+            defer allocator.free(encoded);
 
-            const desc: qoi.qoi_desc = .{
-                .width = self.size[0],
-                .height = self.size[1],
-                .channels = @intCast(self.components_per_pixel),
-                .colorspace = qoi.QOI_SRGB,
-            };
-
-            var encoded_len: c_int = undefined;
-            const encoded = qoi.qoi_encode(self.data.ptr, &desc, &encoded_len) orelse return error.QOIEncodeReturnedNull;
-            // NOTE: requires QOI_FREE() to be libc free()
-            defer std.c.free(encoded);
-
-            try file.writeAll(@as([*]const u8, @ptrCast(encoded))[0..@intCast(encoded_len)]);
+            try file.writeAll(encoded);
         }
 
         /// returned slice needs to be freed.
@@ -313,16 +280,38 @@ pub fn Image(ComponentT: type) type {
                 .colorspace = qoi.QOI_SRGB,
             };
 
-            var encoded_len: c_int = undefined;
-            const encoded = qoi.qoi_encode(self.data.ptr, &desc, &encoded_len) orelse return error.QOIEncodeReturnedNull;
-            // NOTE: requires QOI_FREE() to be libc free()
-            defer std.c.free(encoded);
+            const flipped = try flipVerticallyAlloc(allocator, ComponentT, self.data, .{ self.size[0], self.size[1] }, self.components_per_pixel);
+            defer allocator.free(flipped);
 
-            return try allocator.dupe(u8.encoded);
+            var encoded_len: c_int = undefined;
+            const encoded_cptr = qoi.qoi_encode(flipped.ptr, &desc, &encoded_len) orelse return error.QOIEncodeReturnedNull;
+            // NOTE: requires QOI_FREE() to be libc free()
+            defer std.c.free(encoded_cptr);
+
+            const encoded = @as([*]u8, @ptrCast(encoded_cptr))[0..@intCast(encoded_len)];
+
+            return try allocator.dupe(u8, encoded);
         }
 
         pub fn free(self: *const @This(), allocator: std.mem.Allocator) void {
             allocator.free(self.data);
         }
     };
+}
+
+fn flipVertically(ComponentT: type, in: []const ComponentT, size: @Vector(2, usize), components_per_pixel: usize, out: []ComponentT) []ComponentT {
+    const stride = size[0] * components_per_pixel;
+    for (0..size[1]) |y| {
+        const flipped_y = size[1] - y - 1;
+        @memcpy(
+            out[flipped_y * stride .. (flipped_y + 1) * stride],
+            in[y * stride .. (y + 1) * stride],
+        );
+    }
+    return out[0 .. size[1] * stride];
+}
+
+fn flipVerticallyAlloc(allocator: std.mem.Allocator, ComponentT: type, in: []const ComponentT, size: @Vector(2, usize), components_per_pixel: usize) ![]ComponentT {
+    const bufffer = try allocator.alloc(ComponentT, in.len);
+    return flipVertically(ComponentT, in, size, components_per_pixel, bufffer);
 }

@@ -166,9 +166,9 @@ pub fn stbttFromMemAlloc(allocator: std.mem.Allocator, bytes: []const u8, parame
 
         glyph.uv_rect = .{
             pixel_rect_f32[0] / atlas_size_f32[0],
-            pixel_rect_f32[1] / atlas_size_f32[1],
+            (pixel_rect_f32[1] + pixel_rect_f32[3]) / atlas_size_f32[1],
             pixel_rect_f32[2] / atlas_size_f32[0],
-            pixel_rect_f32[3] / atlas_size_f32[1],
+            -(pixel_rect_f32[3] / atlas_size_f32[1]),
         };
     }
 

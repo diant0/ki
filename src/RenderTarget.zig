@@ -55,13 +55,13 @@ pub fn init(self: *@This(), size: @Vector(2, u32), parameters: Parameters) void 
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, buffer);
 
         const vertex_buffer_data = [6]Vertex{
-            .{ .pos = .{ -1.0, -1.0 }, .uv = .{ 0.0, 1.0 } },
-            .{ .pos = .{ 1.0, -1.0 }, .uv = .{ 1.0, 1.0 } },
-            .{ .pos = .{ 1.0, 1.0 }, .uv = .{ 1.0, 0.0 } },
+            .{ .pos = .{ -1.0, -1.0 }, .uv = .{ 0.0, 0.0 } },
+            .{ .pos = .{ 1.0, -1.0 }, .uv = .{ 1.0, 0.0 } },
+            .{ .pos = .{ 1.0, 1.0 }, .uv = .{ 1.0, 1.0 } },
 
-            .{ .pos = .{ 1.0, 1.0 }, .uv = .{ 1.0, 0.0 } },
-            .{ .pos = .{ -1.0, 1.0 }, .uv = .{ 0.0, 0.0 } },
-            .{ .pos = .{ -1.0, -1.0 }, .uv = .{ 0.0, 1.0 } },
+            .{ .pos = .{ 1.0, 1.0 }, .uv = .{ 1.0, 1.0 } },
+            .{ .pos = .{ -1.0, 1.0 }, .uv = .{ 0.0, 1.0 } },
+            .{ .pos = .{ -1.0, -1.0 }, .uv = .{ 0.0, 0.0 } },
         };
 
         gl.glBufferStorage(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(vertex_buffer_data)), &vertex_buffer_data, 0);

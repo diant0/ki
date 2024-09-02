@@ -61,7 +61,9 @@ test "math.vector.vMagnitude" {
 // --------------------------------
 
 pub inline fn vNormalized(v: anytype) @TypeOf(v) {
-    return v / @as(@TypeOf(v), @splat(vMagnitude(v)));
+    const magnitude = vMagnitude(v);
+    if (magnitude == 0) return @splat(0);
+    return v / @as(@TypeOf(v), @splat(magnitude));
 }
 
 test "math.vector.vNormalized" {
@@ -133,3 +135,7 @@ pub inline fn vMoveTowardsC(from: anytype, to: @TypeOf(from), max_delta_componen
 // TODO: test vMoveTowardsC
 
 // --------------------------------
+
+pub inline fn vScale(vec: anytype, scalar: @typeInfo(@TypeOf(vec)).Vector.child) @TypeOf(vec) {
+    return vec * @as(@TypeOf(vec), @splat(scalar));
+}

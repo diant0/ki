@@ -14,6 +14,7 @@ pub fn Time(comptime T: type) type {
         delta: T = 0.0,
 
         scaled: struct {
+            paused: bool = false,
             scale: T = 1.0,
 
             total: T = 0.0,
@@ -35,8 +36,10 @@ pub fn Time(comptime T: type) type {
             self.delta = @as(T, @floatFromInt(current_ts - self.prev_ts)) / std.time.ns_per_s;
             self.total += self.delta;
 
-            self.scaled.delta = self.delta * self.scaled.scale;
-            self.scaled.total += self.scaled.delta;
+            if (!self.scaled.paused) {
+                self.scaled.delta = self.delta * self.scaled.scale;
+                self.scaled.total += self.scaled.delta;
+            }
 
             self.prev_ts = current_ts;
         }

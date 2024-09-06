@@ -168,7 +168,7 @@ pub fn unbind(_: *const @This()) void {
     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0);
 }
 
-pub fn presentScaled(self: *@This(), target_size: @Vector(2, u32)) void {
+pub fn presentScaled(self: *const @This(), target_size: @Vector(2, u32)) void {
     gl.glViewport(0, 0, @intCast(target_size[0]), @intCast(target_size[1]));
     gl.glUseProgram(self.shader_program);
 
@@ -184,7 +184,7 @@ pub fn presentScaled(self: *@This(), target_size: @Vector(2, u32)) void {
     gl.glDrawArrays(gl.GL_TRIANGLES, 0, 6);
 }
 
-pub fn presentLetterboxed(self: *@This(), target_size: @Vector(2, u32)) void {
+pub fn presentLetterboxed(self: *const @This(), target_size: @Vector(2, u32)) void {
     gl.glViewport(0, 0, @intCast(target_size[0]), @intCast(target_size[1]));
     gl.glUseProgram(self.shader_program);
 

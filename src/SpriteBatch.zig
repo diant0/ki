@@ -157,13 +157,9 @@ pub fn initAlloc(self: *@This(), allocator: std.mem.Allocator, quad_capacity: us
 
         switch (vert_attrib.type) {
             @Vector(2, gl.GLfloat) => gl.glVertexAttribPointer(location, 2, gl.GL_FLOAT, gl.GL_FALSE, @intCast(@sizeOf(Vertex)), @ptrFromInt(@offsetOf(Vertex, vert_attrib.name))),
-
             @Vector(3, gl.GLfloat) => gl.glVertexAttribPointer(location, 3, gl.GL_FLOAT, gl.GL_FALSE, @intCast(@sizeOf(Vertex)), @ptrFromInt(@offsetOf(Vertex, vert_attrib.name))),
-
             @Vector(4, gl.GLfloat) => gl.glVertexAttribPointer(location, 4, gl.GL_FLOAT, gl.GL_FALSE, @intCast(@sizeOf(Vertex)), @ptrFromInt(@offsetOf(Vertex, vert_attrib.name))),
-
             gl.GLfloat => gl.glVertexAttribPointer(location, 1, gl.GL_FLOAT, gl.GL_FALSE, @intCast(@sizeOf(Vertex)), @ptrFromInt(@offsetOf(Vertex, vert_attrib.name))),
-
             else => @compileError("SpriteBatch: unknown vertex attribute type " ++ @typeName(vert_attrib.type)),
         }
     }

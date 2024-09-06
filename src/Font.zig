@@ -271,8 +271,8 @@ pub fn scaleForLineHeight(self: *const @This(), line_height: f32) f32 {
 }
 
 pub fn scaledStringWidth(self: *const @This(), string: []const utf.Codepoint, line_height: f32) !f32 {
-    const base = try self.baseStringWidth(string);
-    return base * scaleForLineHeight(line_height);
+    const base = try self.stringWidth(string);
+    return base * self.scaleForLineHeight(line_height);
 }
 
 pub fn stringWidth(self: *const @This(), string: []const utf.Codepoint) !f32 {

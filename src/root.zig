@@ -1,1 +1,3 @@
-pub const test_string = "ki test string";
+pub const libs = struct {
+    pub const glfw = @import("glfw");
+};

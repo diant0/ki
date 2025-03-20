@@ -3,7 +3,9 @@
     .version = "0.0.0",
     .dependencies = .{},
     .paths = .{
+        "build",
         "src",
+        "vendor",
         "build.zig",
         "build.zig.zon",
     },

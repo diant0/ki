@@ -1,0 +1,12 @@
+.{
+    .name = .ki_cmdline_argparse,
+    .version = "0.0.0",
+    .fingerprint = 0x6c633d1765c8cae3,
+    .minimum_zig_version = "0.16.0-dev.917+dba1bf935",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

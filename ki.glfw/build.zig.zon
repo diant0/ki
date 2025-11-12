@@ -1,0 +1,16 @@
+.{
+    .name = .ki_glfw,
+    .version = "0.0.0",
+    .fingerprint = 0x9b9f14a9f677f80f,
+    .minimum_zig_version = "0.16.0-dev.917+dba1bf935",
+    .dependencies = .{
+        .@"ki.build-tools.vendor-git-repo" = .{
+            .path = "../ki.build-tools.vendor-git-repo",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

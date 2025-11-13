@@ -11,7 +11,7 @@ pub fn parseValue(comptime T: type, value_string: []const u8) !T {
                 if (std.mem.eql(u8, value_string, "false")) break :blk false;
                 break :blk error.ParseError;
             },
-
+            .optional => |optional_type_info| if (std.mem.eql(u8, value_string, "null")) null else try parseValue(optional_type_info.child, value_string),
             else => return error.UnsupportedType,
         },
     };
